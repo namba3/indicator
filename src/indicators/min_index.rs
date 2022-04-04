@@ -3,7 +3,7 @@ use crate::{
 };
 use alloc::collections::VecDeque;
 
-/// Minimum Index
+/// Minimum Index (Number of days elapsed from the date of the lowest price)
 #[derive(Debug, Clone)]
 pub struct MinIndex {
     period: usize,

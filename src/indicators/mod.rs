@@ -11,6 +11,7 @@ pub mod rma;
 pub mod rsi;
 pub mod sma;
 pub mod standard_deviation;
+pub mod stochastics;
 pub mod vwap;
 pub mod vwma;
 
@@ -27,5 +28,6 @@ pub use rma::*;
 pub use rsi::*;
 pub use sma::*;
 pub use standard_deviation::*;
+pub use stochastics::*;
 pub use vwap::*;
 pub use vwma::*;

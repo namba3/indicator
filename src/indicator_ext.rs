@@ -11,15 +11,65 @@ pub trait IndicatorExt: Indicator + Sized {
         F: FnMut(Self::Output) -> R;
 
     /// Mature
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use indicator::*;
+    /// # fn main () {
+    /// let sma = Sma::new(4).unwrap();
+    /// let mut sma = sma.mature(3);
+    ///
+    /// assert_eq!(sma.next(1.0), None);
+    /// assert_eq!(sma.next(2.0), None);
+    /// assert_eq!(sma.next(1.0), None);
+    /// assert_eq!(sma.next(2.0), Some(1.5));
+    /// assert_eq!(sma.next(1.0), Some(1.5));
+    /// assert_eq!(sma.next(2.0), Some(1.5));
+    /// # }
+    /// ```
     fn mature(self, period: usize) -> Mature<Self>;
 
     /// Create a new indicator by combining the two indicators in serial.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use indicator::*;
+    /// # fn main () {
+    /// let sma = Sma::new(2).unwrap();
+    /// let rsi = Rsi::new(14).unwrap();
+    ///
+    /// let mut sma_against_rsi = rsi.pushforward(sma);
+    ///
+    /// for n in 0..100 {
+    ///     let value: Option<f64> = sma_against_rsi.next(n as f64);
+    ///     println!("{value:?}");
+    /// }
+    /// # }
+    /// ```
     fn pushforward<Inner: Indicator<Output = Self::Input>>(
         self,
         inner: Inner,
     ) -> Composition<Inner, Self>;
 
     /// Create a new indicator by combining the two indicators in serial.
+    /// # Example
+    ///
+    /// ```
+    /// # use indicator::*;
+    /// # fn main () {
+    /// let sma = Sma::new(2).unwrap();
+    /// let rsi = Rsi::new(14).unwrap();
+    ///
+    /// let mut sma_against_rsi = sma.pullback(rsi);
+    ///
+    /// for n in 0..100 {
+    ///     let value: Option<f64> = sma_against_rsi.next(n as f64);
+    ///     println!("{value:?}");
+    /// }
+    /// # }
+    /// ```
     fn pullback<Outer: Indicator<Input = Self::Output>>(
         self,
         outer: Outer,

@@ -1,3 +1,17 @@
+//! # Example
+//!
+//! ```
+//! use indicator::*;
+//!
+//! fn main() {
+//!     let mut sma = Sma::new(2).unwrap();
+//!     for n in 0..100 {
+//!         let value: Option<f64> = sma.next(n as f64);
+//!         println!("{value:?}");
+//!     }
+//! }
+//! ```
+
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(dead_code)]
 #![cfg_attr(test, feature(once_cell))]

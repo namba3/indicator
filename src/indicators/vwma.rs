@@ -31,7 +31,7 @@ impl Vwma {
 impl Indicator for Vwma {
     type Input = (f64, f64);
     type Output = f64;
-    fn next(&mut self, (price, volume): Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, (price, volume): Self::Input) -> Self::Output {
         match &mut self.sum {
             Some((sum, total_volume)) => {
                 let (old_price, old_volume) = self.ring.pop_front().unwrap();
@@ -54,7 +54,7 @@ impl Indicator for Vwma {
                     .into();
             }
         }
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for Vwma {
@@ -63,7 +63,7 @@ impl Current for Vwma {
     }
 }
 impl<Input: Price + Volume> NextExt<&Input> for Vwma {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next((input.price(), input.volume()))
     }
 }
@@ -78,7 +78,6 @@ impl Reset for Vwma {
 mod tests {
     use super::*;
     use crate::{test_helper::*, Volume};
-    use std::lazy::SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64, f64);
@@ -102,13 +101,7 @@ mod tests {
         (102.0, 3.0),
         (102.0, 1.0),
     ];
-    static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
-        [101.0, 101.25, 101.2, 101.5, 101.75, 101.75]
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
-            .into_boxed_slice()
-    });
+    static OUTPUTS: &[f64] = &[101.0, 101.25, 101.2, 101.5, 101.75, 101.75];
 
     test_indicator! {
         new: Vwma::new(PERIOD),

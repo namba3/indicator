@@ -31,7 +31,7 @@ impl Sma {
 impl Indicator for Sma {
     type Input = f64;
     type Output = f64;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, input: Self::Input) -> Self::Output {
         match &mut self.sum {
             Some(sum) => {
                 *sum -= self.ring.pop_front().unwrap();
@@ -45,7 +45,7 @@ impl Indicator for Sma {
                 self.sum = (input * self.period as f64).into();
             }
         }
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for Sma {
@@ -54,7 +54,7 @@ impl Current for Sma {
     }
 }
 impl<Input: Price> NextExt<&Input> for Sma {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next(input.price())
     }
 }
@@ -69,7 +69,6 @@ impl Reset for Sma {
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use std::lazy::SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);
@@ -81,13 +80,7 @@ mod tests {
 
     const PERIOD: usize = 5;
     static INPUTS: &[f64] = &[100.0, 101.0, 101.0, 102.0, 102.0, 102.0];
-    static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
-        [100.0, 100.2, 100.4, 100.8, 101.2, 101.6]
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
-            .into_boxed_slice()
-    });
+    static OUTPUTS: &[f64] = &[100.0, 100.2, 100.4, 100.8, 101.2, 101.6];
 
     test_indicator! {
         new: Sma::new(PERIOD),

@@ -38,9 +38,9 @@ impl BolingerBands {
 impl Indicator for BolingerBands {
     type Input = f64;
     type Output = BolingerBandsOutput;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, input: Self::Input) -> Self::Output {
         let _ = self.sd.next(input);
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for BolingerBands {
@@ -58,7 +58,7 @@ impl Current for BolingerBands {
     }
 }
 impl<Input: Price> NextExt<&Input> for BolingerBands {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next(input.price())
     }
 }
@@ -95,7 +95,7 @@ mod tests {
     const PERIOD: usize = 5;
     const MULTIPLIER: f64 = 2.0;
     static INPUTS: &[f64] = &[100.0, 104.0, 102.0, 102.0];
-    static OUTPUTS: SyncLazy<Box<[Option<BolingerBandsOutput>]>> = SyncLazy::new(|| {
+    static OUTPUTS: SyncLazy<Box<[BolingerBandsOutput]>> = SyncLazy::new(|| {
         [
             (100.0, 100.0, 100.0),
             (100.8, 104.0, 97.6),
@@ -108,9 +108,7 @@ mod tests {
             upper_bound,
             lower_bound,
         })
-        .into_iter()
-        .map(Some)
-        .collect::<Vec<Option<_>>>()
+        .collect::<Vec<_>>()
         .into_boxed_slice()
     });
 

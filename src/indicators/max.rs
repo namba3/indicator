@@ -31,7 +31,7 @@ impl Max {
 impl Indicator for Max {
     type Input = f64;
     type Output = f64;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, input: Self::Input) -> Self::Output {
         match &mut self.current {
             Some(max) => {
                 let old_val = self.ring.pop_front().unwrap();
@@ -57,7 +57,7 @@ impl Indicator for Max {
                 self.current = input.into();
             }
         }
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for Max {
@@ -66,7 +66,7 @@ impl Current for Max {
     }
 }
 impl<Input: Price> NextExt<&Input> for Max {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next(input.price())
     }
 }
@@ -81,7 +81,6 @@ impl Reset for Max {
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use std::lazy::SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);
@@ -93,13 +92,7 @@ mod tests {
 
     const PERIOD: usize = 2;
     static INPUTS: &[f64] = &[6.0, 7.0, 8.0, 3.0, 2.0, 4.0];
-    static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
-        [6.0, 7.0, 8.0, 8.0, 3.0, 4.0]
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
-            .into_boxed_slice()
-    });
+    static OUTPUTS: &[f64] = &[6.0, 7.0, 8.0, 8.0, 3.0, 4.0];
 
     test_indicator! {
         new: Max::new(PERIOD),

@@ -28,11 +28,8 @@ where
 {
     type Input = (Lhs::Input, Rhs::Input);
     type Output = <Lhs::Output as Sub>::Output;
-    fn next(&mut self, (l, r): Self::Input) -> Option<Self::Output> {
-        match (self.lhs.next(l), self.rhs.next(r)) {
-            (Some(lhs), Some(rhs)) => (lhs - rhs).into(),
-            _ => None,
-        }
+    fn next(&mut self, (l, r): Self::Input) -> Self::Output {
+        self.lhs.next(l) - self.rhs.next(r)
     }
 }
 
@@ -75,13 +72,8 @@ mod tests {
         (3.0, 1.0),
         (1.0, 9.0),
     ];
-    static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
-        [0.0, 0.0, -2.0, 2.0, 2.0, -8.0]
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
-            .into_boxed_slice()
-    });
+    static OUTPUTS: SyncLazy<Box<[f64]>> =
+        SyncLazy::new(|| [0.0, 0.0, -2.0, 2.0, 2.0, -8.0].into());
 
     test_indicator! {
         new: Ok(Diff::new(Identity::new(), Identity::new())),

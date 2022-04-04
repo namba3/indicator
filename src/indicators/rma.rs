@@ -28,7 +28,7 @@ impl Rma {
 impl Indicator for Rma {
     type Input = f64;
     type Output = f64;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, input: Self::Input) -> Self::Output {
         match &mut self.current {
             Some(current) => {
                 *current += (input - *current) / self.period as f64;
@@ -37,7 +37,7 @@ impl Indicator for Rma {
                 self.current = input.into();
             }
         }
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for Rma {
@@ -46,7 +46,7 @@ impl Current for Rma {
     }
 }
 impl<Input: Price> NextExt<&Input> for Rma {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next(input.price())
     }
 }
@@ -60,7 +60,6 @@ impl Reset for Rma {
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use std::lazy::SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);
@@ -72,13 +71,7 @@ mod tests {
 
     const PERIOD: usize = 5;
     static INPUTS: &[f64] = &[101.0, 101.0, 101.0, 102.0, 101.0, 101.0];
-    static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
-        [101.0, 101.0, 101.0, 101.2, 101.16, 101.128]
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
-            .into_boxed_slice()
-    });
+    static OUTPUTS: &[f64] = &[101.0, 101.0, 101.0, 101.2, 101.16, 101.128];
 
     test_indicator! {
         new: Rma::new(PERIOD),

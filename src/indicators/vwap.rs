@@ -18,7 +18,7 @@ impl Vwap {
 impl Indicator for Vwap {
     type Input = (f64, f64);
     type Output = f64;
-    fn next(&mut self, (price, volume): Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, (price, volume): Self::Input) -> Self::Output {
         self.total_volume += volume;
         match &mut self.current {
             Some(current) => {
@@ -28,7 +28,7 @@ impl Indicator for Vwap {
                 self.current = price.into();
             }
         }
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for Vwap {
@@ -37,7 +37,7 @@ impl Current for Vwap {
     }
 }
 impl<Input: Price + Volume> NextExt<&Input> for Vwap {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next((input.price(), input.volume()))
     }
 }
@@ -52,7 +52,6 @@ impl Reset for Vwap {
 mod tests {
     use super::*;
     use crate::{test_helper::*, Volume};
-    use std::lazy::SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64, f64);
@@ -75,13 +74,7 @@ mod tests {
         (102.0, 2.0),
         (102.0, 2.0),
     ];
-    static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
-        [101.0, 101.5, 101.25, 101.5, 101.625, 101.7]
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
-            .into_boxed_slice()
-    });
+    static OUTPUTS: &[f64] = &[101.0, 101.5, 101.25, 101.5, 101.625, 101.7];
 
     test_indicator! {
         new: crate::Result::Ok(Vwap::new()),

@@ -43,8 +43,8 @@ pub trait IndicatorExt: Indicator + Sized {
     /// let mut sma_against_rsi = rsi.pushforward(sma);
     ///
     /// for n in 0..100 {
-    ///     let value: Option<f64> = sma_against_rsi.next(n as f64);
-    ///     println!("{value:?}");
+    ///     let value: f64 = sma_against_rsi.next(n as f64);
+    ///     println!("{value}");
     /// }
     /// # }
     /// ```
@@ -65,8 +65,8 @@ pub trait IndicatorExt: Indicator + Sized {
     /// let mut sma_against_rsi = sma.pullback(rsi);
     ///
     /// for n in 0..100 {
-    ///     let value: Option<f64> = sma_against_rsi.next(n as f64);
-    ///     println!("{value:?}");
+    ///     let value = sma_against_rsi.next(n as f64);
+    ///     println!("{value}");
     /// }
     /// # }
     /// ```

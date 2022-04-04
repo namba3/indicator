@@ -9,9 +9,9 @@ impl<T: Clone> Identity<T> {
 impl<T: Clone> Indicator for Identity<T> {
     type Input = T;
     type Output = T;
-    fn next(&mut self, input: T) -> Option<<Self as Indicator>::Output> {
-        self.0 = input.into();
-        self.0.clone()
+    fn next(&mut self, input: T) -> Self::Output {
+        self.0 = input.clone().into();
+        input
     }
 }
 impl<T: Clone> Current for Identity<T> {

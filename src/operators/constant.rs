@@ -9,8 +9,8 @@ impl<T: Clone> From<T> for Constant<T> {
 impl<T: Clone> Indicator for Constant<T> {
     type Input = ();
     type Output = T;
-    fn next(&mut self, _input: ()) -> Option<<Self as Indicator>::Output> {
-        self.0.clone().into()
+    fn next(&mut self, _input: ()) -> Self::Output {
+        self.0.clone()
     }
 }
 impl<T: Clone> Current for Constant<T> {

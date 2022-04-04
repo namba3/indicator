@@ -31,7 +31,7 @@ impl MinIndex {
 impl Indicator for MinIndex {
     type Input = f64;
     type Output = usize;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, input: Self::Input) -> Self::Output {
         match &mut self.current {
             Some(min_index) => {
                 let min = self.ring[*min_index];
@@ -58,7 +58,7 @@ impl Indicator for MinIndex {
                 self.current = 0.into();
             }
         }
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for MinIndex {
@@ -67,7 +67,7 @@ impl Current for MinIndex {
     }
 }
 impl<Input: Price> NextExt<&Input> for MinIndex {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next(input.price())
     }
 }
@@ -82,7 +82,6 @@ impl Reset for MinIndex {
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use std::lazy::SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);
@@ -94,13 +93,7 @@ mod tests {
 
     const PERIOD: usize = 2;
     static INPUTS: &[f64] = &[6.0, 7.0, 8.0, 3.0, 2.0, 4.0];
-    static OUTPUTS: SyncLazy<Box<[Option<usize>]>> = SyncLazy::new(|| {
-        [0, 1, 1, 0, 0, 1]
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
-            .into_boxed_slice()
-    });
+    static OUTPUTS: &[usize] = &[0, 1, 1, 0, 0, 1];
 
     test_indicator! {
         new: MinIndex::new(PERIOD),

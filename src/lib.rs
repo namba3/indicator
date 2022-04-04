@@ -6,8 +6,8 @@
 //! fn main() {
 //!     let mut sma = Sma::new(2).unwrap();
 //!     for n in 0..100 {
-//!         let value: Option<f64> = sma.next(n as f64);
-//!         println!("{value:?}");
+//!         let value: f64 = sma.next(n as f64);
+//!         println!("{value}");
 //!     }
 //! }
 //! ```
@@ -72,7 +72,7 @@ impl<T: High + Low + Open + Close + Volume> Candlestick for T {}
 pub trait Indicator {
     type Input;
     type Output;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output>;
+    fn next(&mut self, input: Self::Input) -> Self::Output;
 }
 
 /// Current
@@ -81,7 +81,7 @@ pub trait Current: Indicator {
 }
 /// Next
 pub trait NextExt<Input>: Indicator {
-    fn next_ext(&mut self, input: Input) -> Option<Self::Output>;
+    fn next_ext(&mut self, input: Input) -> Self::Output;
 }
 /// Reset
 pub trait Reset {

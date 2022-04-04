@@ -45,11 +45,10 @@ impl Default for AroonIndicator {
 impl Indicator for AroonIndicator {
     type Input = f64;
     type Output = AroonIndicatorOutput;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, input: Self::Input) -> Self::Output {
         let _ = self.min_index.next(input);
         let _ = self.max_index.next(input);
-
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for AroonIndicator {
@@ -69,7 +68,7 @@ impl Current for AroonIndicator {
     }
 }
 impl<Input: Price> NextExt<&Input> for AroonIndicator {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next(input.price())
     }
 }
@@ -124,7 +123,7 @@ mod tests {
 
     const PERIOD: usize = 4;
     static INPUTS: &[f64] = &[6.0, 7.0, 8.0, 3.0, 2.0, 4.0];
-    static OUTPUTS: SyncLazy<Box<[Option<AroonIndicatorOutput>]>> = SyncLazy::new(|| {
+    static OUTPUTS: SyncLazy<Box<[AroonIndicatorOutput]>> = SyncLazy::new(|| {
         [
             (1.0, 1.0),
             (1.0, 0.75),
@@ -135,8 +134,7 @@ mod tests {
         ]
         .into_iter()
         .map(AroonIndicatorOutput::from)
-        .map(Some)
-        .collect::<Vec<Option<_>>>()
+        .collect::<Vec<_>>()
         .into_boxed_slice()
     });
 

@@ -35,7 +35,7 @@ impl Default for Rsi {
 impl Indicator for Rsi {
     type Input = f64;
     type Output = f64;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, input: Self::Input) -> Self::Output {
         match &mut self.prev_input {
             Some(prev_input) => {
                 let change = input - *prev_input;
@@ -50,7 +50,7 @@ impl Indicator for Rsi {
             }
         }
 
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for Rsi {
@@ -68,7 +68,7 @@ impl Current for Rsi {
     }
 }
 impl<Input: Price> NextExt<&Input> for Rsi {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next(input.price())
     }
 }
@@ -84,7 +84,6 @@ impl Reset for Rsi {
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use std::lazy::SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);
@@ -96,13 +95,7 @@ mod tests {
 
     const PERIOD: usize = 3;
     static INPUTS: &[f64] = &[100.0, 101.0, 100.0, 100.0, 100.0, 102.0];
-    static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
-        [0.5, 1.0, 0.4, 0.4, 0.4, 0.8811881188118]
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
-            .into_boxed_slice()
-    });
+    static OUTPUTS: &[f64] = &[0.5, 1.0, 0.4, 0.4, 0.4, 0.8811881188118];
 
     test_indicator! {
         new: Rsi::new(PERIOD),

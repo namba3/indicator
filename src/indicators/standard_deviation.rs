@@ -38,7 +38,7 @@ impl StandardDeviation {
 impl Indicator for StandardDeviation {
     type Input = f64;
     type Output = StandardDeviationOutput;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
+    fn next(&mut self, input: Self::Input) -> Self::Output {
         match &mut self.mean_sse {
             Some((mean, sse)) => {
                 let old_input = self.ring.pop_front().unwrap();
@@ -57,7 +57,7 @@ impl Indicator for StandardDeviation {
                 self.mean_sse = (input, 0.0).into();
             }
         }
-        self.current()
+        self.current().unwrap()
     }
 }
 impl Current for StandardDeviation {
@@ -74,7 +74,7 @@ impl Current for StandardDeviation {
     }
 }
 impl<Input: Price> NextExt<&Input> for StandardDeviation {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next(input.price())
     }
 }
@@ -110,7 +110,7 @@ mod tests {
 
     const PERIOD: usize = 5;
     static INPUTS: &[f64] = &[100.0, 104.0, 102.0, 102.0];
-    static OUTPUTS: SyncLazy<Box<[Option<StandardDeviationOutput>]>> = SyncLazy::new(|| {
+    static OUTPUTS: SyncLazy<Box<[StandardDeviationOutput]>> = SyncLazy::new(|| {
         [
             (100.0, 0.0),
             (100.8, 1.6),
@@ -119,8 +119,7 @@ mod tests {
         ]
         .into_iter()
         .map(|(mean, sd)| StandardDeviationOutput { mean, sd })
-        .map(Some)
-        .collect::<Vec<Option<_>>>()
+        .collect::<Vec<_>>()
         .into_boxed_slice()
     });
 

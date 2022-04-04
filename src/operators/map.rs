@@ -31,8 +31,8 @@ where
 {
     type Input = I::Input;
     type Output = R;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
-        self.i.next(input).map(|x| (self.f)(x))
+    fn next(&mut self, input: Self::Input) -> Self::Output {
+        (self.f)(self.i.next(input))
     }
 }
 
@@ -51,8 +51,8 @@ where
     I: Indicator + NextExt<N>,
     F: FnMut(I::Output) -> R,
 {
-    fn next_ext(&mut self, input: N) -> Option<Self::Output> {
-        self.i.next_ext(input).map(|x| (self.f)(x))
+    fn next_ext(&mut self, input: N) -> Self::Output {
+        (self.f)(self.i.next_ext(input))
     }
 }
 
@@ -85,12 +85,11 @@ mod tests {
         x * x
     }
     static INPUTS: &[f64] = &[100.0, 101.0, 101.0, 102.0, 102.0, 102.0];
-    static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
+    static OUTPUTS: SyncLazy<Box<[f64]>> = SyncLazy::new(|| {
         [100.0, 100.2, 100.4, 100.8, 101.2, 101.6]
             .into_iter()
             .map(f)
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
+            .collect::<Vec<_>>()
             .into_boxed_slice()
     });
 
@@ -124,7 +123,7 @@ mod tests {
             let v_sma = sma.next(x);
             let v_sma_map = sma_map.next(x);
 
-            assert_eq!(v_sma.map(f), v_sma_map)
+            assert_eq!(f(v_sma), v_sma_map)
         }
 
         Ok(())

@@ -17,12 +17,12 @@ impl<I: Indicator> Mature<I> {
 }
 impl<I: Indicator> Indicator for Mature<I> {
     type Input = I::Input;
-    type Output = I::Output;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
+    type Output = Option<I::Output>;
+    fn next(&mut self, input: Self::Input) -> Self::Output {
         let output = self.i.next(input);
         if self.cnt <= 1 {
             self.cnt = 0;
-            output
+            Some(output)
         } else {
             self.cnt -= 1;
             None
@@ -33,11 +33,11 @@ impl<I: Indicator, N> NextExt<N> for Mature<I>
 where
     I: NextExt<N>,
 {
-    fn next_ext(&mut self, input: N) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: N) -> Self::Output {
         let output = self.i.next_ext(input);
         if self.cnt <= 1 {
             self.cnt = 0;
-            output
+            Some(output)
         } else {
             self.cnt -= 1;
             None
@@ -50,7 +50,7 @@ where
 {
     fn current(&self) -> Option<Self::Output> {
         if self.cnt <= 0 {
-            self.i.current()
+            self.i.current().into()
         } else {
             None
         }
@@ -97,9 +97,6 @@ mod tests {
         inputs: INPUTS.iter().copied(),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
-            current: {
-                inputs: RANDOM_DATA.iter().map(|x| x.price()),
-            },
             next_ext: {
                 inputs: INPUTS.iter().map(|x| TestItem(*x)),
                 outputs: OUTPUTS.iter().copied(),
@@ -129,7 +126,29 @@ mod tests {
             let v_sma = sma.next(x);
             let v_sma_mature = sma_mature.next(x);
 
-            assert_eq!(v_sma, v_sma_mature)
+            assert_eq!(Some(v_sma), v_sma_mature)
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn current() -> crate::Result<()> {
+        let mut indicator = Sma::new(PERIOD).map(|sma| Mature::new(sma, MATURE_PERIOD))?;
+
+        let inputs = RANDOM_DATA.iter().map(|x| x.price());
+
+        for x in inputs {
+            let value = Indicator::next(&mut indicator, x);
+            let current = indicator.current();
+            match value {
+                Some(value) => {
+                    assert_eq!(Some(value), current.flatten())
+                }
+                None => {
+                    assert!(current.is_none());
+                }
+            }
         }
 
         Ok(())

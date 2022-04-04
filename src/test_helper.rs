@@ -88,6 +88,11 @@ impl Round for usize {
         self
     }
 }
+impl<T: Round> Round for Option<T> {
+    fn round(self) -> Self {
+        self.map(Round::round)
+    }
+}
 
 macro_rules! test_indicator {
     {
@@ -137,13 +142,13 @@ macro_rules! test_next {
             let mut indicator = new?;
 
             let inputs: Vec<_> = $inputs.into_iter().collect();
-            let outputs: Vec<Option<_>> = $outputs.into_iter().collect();
+            let outputs: Vec<_> = $outputs.into_iter().collect();
 
             assert_eq!(inputs.len(), outputs.len());
 
             for (i, x) in inputs.into_iter().enumerate() {
-                let x = Indicator::next(&mut indicator, x).map(Round::round);
-                let correct = outputs[i].map(Round::round);
+                let x = Round::round(Indicator::next(&mut indicator, x));
+                let correct = Round::round(outputs[i]);
                 assert_eq!(x, correct);
             }
 
@@ -207,13 +212,13 @@ macro_rules! test_next_ext {
             let mut indicator = new?;
 
             let inputs: Vec<_> = $inputs.into_iter().collect();
-            let outputs: Vec<Option<_>> = $outputs.into_iter().collect();
+            let outputs: Vec<_> = $outputs.into_iter().collect();
 
             assert_eq!(inputs.len(), outputs.len());
 
             for (i, x) in inputs.into_iter().enumerate() {
-                let x = NextExt::next_ext(&mut indicator, &x).map(Round::round);
-                let correct = outputs[i].map(Round::round);
+                let x = Round::round(NextExt::next_ext(&mut indicator, &x));
+                let correct = Round::round(outputs[i]);
                 assert_eq!(x, correct);
             }
 
@@ -282,7 +287,7 @@ macro_rules! test_current {
 
             for x in inputs.iter().copied() {
                 let value = Indicator::next(&mut indicator, x);
-                assert_eq!(value, Current::current(&indicator));
+                assert_eq!(Current::current(&indicator), Some(value.into()));
             }
 
             Ok(())

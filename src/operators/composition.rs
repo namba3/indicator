@@ -25,12 +25,8 @@ where
 {
     type Input = Inner::Input;
     type Output = Outer::Output;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
-        if let Some(inner_output) = self.inner.next(input) {
-            self.outer.next(inner_output)
-        } else {
-            None
-        }
+    fn next(&mut self, input: Self::Input) -> Self::Output {
+        self.outer.next(self.inner.next(input))
     }
 }
 impl<Inner, Outer, N> NextExt<N> for Composition<Inner, Outer>
@@ -38,12 +34,8 @@ where
     Inner: Indicator + NextExt<N>,
     Outer: Indicator<Input = Inner::Output>,
 {
-    fn next_ext(&mut self, input: N) -> Option<Self::Output> {
-        if let Some(inner_output) = self.inner.next_ext(input) {
-            self.outer.next(inner_output)
-        } else {
-            None
-        }
+    fn next_ext(&mut self, input: N) -> Self::Output {
+        self.outer.next(self.inner.next_ext(input))
     }
 }
 impl<Inner, Outer> Current for Composition<Inner, Outer>
@@ -83,13 +75,8 @@ mod tests {
     const RSI_PERIOD: usize = 3;
     const SMA_PERIOD: usize = 2;
     static INPUTS: &[f64] = &[100.0, 101.0, 100.0, 100.0, 100.0, 102.0];
-    static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
-        [0.5, 0.75, 0.7, 0.4, 0.4, 0.6405940594]
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<_>>>()
-            .into_boxed_slice()
-    });
+    static OUTPUTS: SyncLazy<Box<[f64]>> =
+        SyncLazy::new(|| [0.5, 0.75, 0.7, 0.4, 0.4, 0.6405940594].into());
 
     test_indicator! {
         new: match (Sma::new(SMA_PERIOD), Rsi::new(RSI_PERIOD)) {

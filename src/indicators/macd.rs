@@ -46,12 +46,9 @@ impl Default for Macd {
 impl Indicator for Macd {
     type Input = f64;
     type Output = MacdOutput;
-    fn next(&mut self, input: Self::Input) -> Option<Self::Output> {
-        if let Some(x) = self.macd.next((input, input)) {
-            let _ = self.signal.next(x);
-        }
-
-        self.current()
+    fn next(&mut self, input: Self::Input) -> Self::Output {
+        let _ = self.signal.next(self.macd.next((input, input)));
+        self.current().unwrap()
     }
 }
 impl Current for Macd {
@@ -68,7 +65,7 @@ impl Current for Macd {
     }
 }
 impl<Input: Price> NextExt<&Input> for Macd {
-    fn next_ext(&mut self, input: &Input) -> Option<Self::Output> {
+    fn next_ext(&mut self, input: &Input) -> Self::Output {
         self.next(input.price())
     }
 }
@@ -128,7 +125,7 @@ mod tests {
     const LONG_PERIOD: usize = 4;
     const SIGNAL_PERIOD: usize = 2;
     static INPUTS: &[f64] = &[100.0, 200.0, 300.0, 200.0, 100.0, 0.0];
-    static OUTPUTS: SyncLazy<Box<[Option<MacdOutput>]>> = SyncLazy::new(|| {
+    static OUTPUTS: SyncLazy<Box<[MacdOutput]>> = SyncLazy::new(|| {
         [
             (0.0, 0.0, 0.0),
             (26.66666667, 13.33333333, 13.33333333),
@@ -139,8 +136,7 @@ mod tests {
         ]
         .into_iter()
         .map(MacdOutput::from)
-        .map(Some)
-        .collect::<Vec<Option<_>>>()
+        .collect::<Vec<_>>()
         .into_boxed_slice()
     });
 

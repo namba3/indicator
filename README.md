@@ -12,8 +12,8 @@ use indicator::*;
 fn main() {
     let mut sma = Sma::new(2).unwrap();
     for n in 0..100 {
-        let value: Option<f64> = sma.next(n as f64);
-        println!("{value:?}");
+        let value: f64 = sma.next(n as f64);
+        println!("{value}");
     }
 }
 ```
@@ -52,8 +52,8 @@ let rsi = Rsi::new(14).unwrap();
 let mut sma_against_rsi = rsi.pushforward(sma);
 
 for n in 0..100 {
-    let value: Option<f64> = sma_against_rsi.next(n as f64);
-    println!("{value:?}");
+    let value: f64 = sma_against_rsi.next(n as f64);
+    println!("{value}");
 }
 ```
 

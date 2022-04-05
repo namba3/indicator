@@ -80,8 +80,8 @@ impl Reset for Stochastics {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StochasticsOutput {
-    k: f64,
-    d: f64,
+    pub k: f64,
+    pub d: f64,
 }
 impl From<(f64, f64)> for StochasticsOutput {
     fn from((k, d): (f64, f64)) -> Self {

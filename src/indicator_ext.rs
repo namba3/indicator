@@ -5,7 +5,24 @@ use crate::{
 
 /// Provides extended methods for Indicator.
 pub trait IndicatorExt: Indicator + Sized {
-    /// Create a new indicator that applies a projection to the output of the indicator.
+    /// Create a new indicator that applies a functional transformation to the output of the indicator.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use indicator::*;
+    /// # fn main() {
+    /// use std::f64::consts::PI;
+    ///
+    /// let macd = Macd::default();
+    /// let mut macd = macd.map(|MacdOutput{ macd, signal: _, histogram: _}| macd);
+    ///
+    /// for input in (0..100).map(|n| f64::sin(PI / 10.0 * n as f64)) {
+    ///     let value: f64 = macd.next(input);
+    ///     println!("{value}");
+    /// }
+    /// # }
+    /// ```
     fn map<F, R>(self, f: F) -> Map<Self, F, R>
     where
         F: FnMut(Self::Output) -> R;
@@ -37,13 +54,15 @@ pub trait IndicatorExt: Indicator + Sized {
     /// ```
     /// # use indicator::*;
     /// # fn main () {
+    /// use std::f64::consts::PI;
+    ///
     /// let sma = Sma::new(2).unwrap();
     /// let rsi = Rsi::new(14).unwrap();
     ///
     /// let mut sma_against_rsi = rsi.pushforward(sma);
     ///
-    /// for n in 0..100 {
-    ///     let value: f64 = sma_against_rsi.next(n as f64);
+    /// for input in (0..100).map(|n| f64::sin(PI / 10.0 * n as f64)) {
+    ///     let value: f64 = sma_against_rsi.next(input);
     ///     println!("{value}");
     /// }
     /// # }
@@ -59,13 +78,15 @@ pub trait IndicatorExt: Indicator + Sized {
     /// ```
     /// # use indicator::*;
     /// # fn main () {
+    /// use std::f64::consts::PI;
+    ///
     /// let sma = Sma::new(2).unwrap();
     /// let rsi = Rsi::new(14).unwrap();
     ///
     /// let mut sma_against_rsi = sma.pullback(rsi);
     ///
-    /// for n in 0..100 {
-    ///     let value = sma_against_rsi.next(n as f64);
+    /// for input in (0..100).map(|n| f64::sin(PI / 10.0 * n as f64)) {
+    ///     let value: f64 = sma_against_rsi.next(input);
     ///     println!("{value}");
     /// }
     /// # }

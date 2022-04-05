@@ -78,9 +78,9 @@ impl Reset for Macd {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MacdOutput {
-    macd: f64,
-    signal: f64,
-    histogram: f64,
+    pub macd: f64,
+    pub signal: f64,
+    pub histogram: f64,
 }
 impl From<(f64, f64, f64)> for MacdOutput {
     fn from((macd, signal, histogram): (f64, f64, f64)) -> Self {

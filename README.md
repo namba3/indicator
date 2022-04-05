@@ -39,6 +39,7 @@ fn main() {
 - RSI: Relative Strength Index
 - SMA: Simple Moving Average
 - Standard Deviation
+- Stochastics
 - VWAP: Volume Weighted Average Price
 - VWMA: Volume Weighted Moving Average
 

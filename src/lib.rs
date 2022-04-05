@@ -35,6 +35,25 @@ pub use error::*;
 pub use indicator_ext::*;
 pub use indicators::*;
 
+/// Indicator
+pub trait Indicator {
+    type Output;
+}
+
+/// Next
+pub trait Next<Input>: Indicator {
+    fn next(&mut self, input: Input) -> Self::Output;
+}
+
+/// Current
+pub trait Current: Indicator {
+    fn current(&self) -> Option<Self::Output>;
+}
+/// Reset
+pub trait Reset {
+    fn reset(&mut self);
+}
+
 pub trait High {
     fn high(&self) -> f64;
 }
@@ -68,24 +87,33 @@ pub trait Candlestick: High + Low + Open + Close + Volume {
     fn hlcc(&self) -> f64 {
         (self.high() + self.low() + self.close() * 2.0) / 4.0
     }
+
+    /// Calculate pivot point
+    fn pivot_point(&self) -> PivotPoint {
+        let p = self.hlc();
+        let d1 = self.high() - p;
+        let d2 = p - self.low();
+        let d3 = self.high() - self.low();
+        PivotPoint {
+            r3: p + d2 + d3,
+            r2: p + d3,
+            r1: p + d2,
+            pivot_point: p,
+            s1: p - d1,
+            s2: p - d3,
+            s3: p - d1 - d3,
+        }
+    }
 }
 impl<T: High + Low + Open + Close + Volume> Candlestick for T {}
 
-/// Indicator
-pub trait Indicator {
-    type Output;
-}
-
-/// Next
-pub trait Next<Input>: Indicator {
-    fn next(&mut self, input: Input) -> Self::Output;
-}
-
-/// Current
-pub trait Current: Indicator {
-    fn current(&self) -> Option<Self::Output>;
-}
-/// Reset
-pub trait Reset {
-    fn reset(&mut self);
+#[derive(Debug, Clone, PartialEq)]
+pub struct PivotPoint {
+    pub r3: f64,
+    pub r2: f64,
+    pub r1: f64,
+    pub pivot_point: f64,
+    pub s1: f64,
+    pub s2: f64,
+    pub s3: f64,
 }

@@ -1,6 +1,4 @@
-use crate::{
-    Current, Indicator, InvalidRangeError, NextExt, Parameter, Price, Range, Reset, Result,
-};
+use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
 
 /// Running Moving Average (a.k.a Modified Moving Average)
 #[derive(Debug, Clone)]
@@ -23,12 +21,8 @@ impl Rma {
             })
         }
     }
-}
 
-impl Indicator for Rma {
-    type Input = f64;
-    type Output = f64;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
+    fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         match &mut self.current {
             Some(current) => {
                 *current += (input - *current) / self.period as f64;
@@ -40,14 +34,23 @@ impl Indicator for Rma {
         self.current().unwrap()
     }
 }
+
+impl Indicator for Rma {
+    type Output = f64;
+}
 impl Current for Rma {
     fn current(&self) -> Option<Self::Output> {
         self.current
     }
 }
-impl<Input: Price> NextExt<&Input> for Rma {
-    fn next_ext(&mut self, input: &Input) -> Self::Output {
-        self.next(input.price())
+impl Next<f64> for Rma {
+    fn next(&mut self, input: f64) -> Self::Output {
+        self._next(input)
+    }
+}
+impl<Input: Price> Next<&Input> for Rma {
+    fn next(&mut self, input: &Input) -> Self::Output {
+        self._next(input.price())
     }
 }
 impl Reset for Rma {
@@ -58,6 +61,8 @@ impl Reset for Rma {
 
 #[cfg(test)]
 mod tests {
+    use std::lazy::SyncLazy;
+
     use super::*;
     use crate::test_helper::*;
 
@@ -70,12 +75,18 @@ mod tests {
     }
 
     const PERIOD: usize = 5;
-    static INPUTS: &[f64] = &[101.0, 101.0, 101.0, 102.0, 101.0, 101.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [101.0, 101.0, 101.0, 102.0, 101.0, 101.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: &[f64] = &[101.0, 101.0, 101.0, 101.2, 101.16, 101.128];
 
     test_indicator! {
         new: Rma::new(PERIOD),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
@@ -85,7 +96,7 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

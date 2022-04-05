@@ -1,4 +1,4 @@
-use crate::{AroonIndicator, Current, Indicator, NextExt, Price, Reset, Result};
+use crate::{AroonIndicator, Current, Indicator, Next, Price, Reset, Result};
 
 /// Aroon Oscillator
 /// ///
@@ -8,12 +8,17 @@ pub struct AroonOscillator {
     aroon_indicator: AroonIndicator,
 }
 impl AroonOscillator {
+    pub const DEFAULT_PERIOD: usize = AroonIndicator::DEFAULT_PERIOD;
+
     pub fn new(period: usize) -> Result<Self> {
         let aroon_indicator = AroonIndicator::new(period)?;
         Ok(Self { aroon_indicator })
     }
 
-    pub const DEFAULT_PERIOD: usize = AroonIndicator::DEFAULT_PERIOD;
+    fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
+        let _ = self.aroon_indicator.next(input);
+        self.current().unwrap()
+    }
 }
 impl Default for AroonOscillator {
     fn default() -> Self {
@@ -23,12 +28,7 @@ impl Default for AroonOscillator {
     }
 }
 impl Indicator for AroonOscillator {
-    type Input = f64;
     type Output = f64;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
-        let _ = self.aroon_indicator.next(input);
-        self.current().unwrap()
-    }
 }
 impl Current for AroonOscillator {
     fn current(&self) -> Option<Self::Output> {
@@ -37,9 +37,14 @@ impl Current for AroonOscillator {
             .map(|x| x.aroon_up - x.aroon_down)
     }
 }
-impl<Input: Price> NextExt<&Input> for AroonOscillator {
-    fn next_ext(&mut self, input: &Input) -> Self::Output {
-        self.next(input.price())
+impl Next<f64> for AroonOscillator {
+    fn next(&mut self, input: f64) -> Self::Output {
+        self._next(input)
+    }
+}
+impl<Input: Price> Next<&Input> for AroonOscillator {
+    fn next(&mut self, input: &Input) -> Self::Output {
+        self._next(input.price())
     }
 }
 impl Reset for AroonOscillator {
@@ -52,6 +57,7 @@ impl Reset for AroonOscillator {
 mod tests {
     use super::*;
     use crate::test_helper::*;
+    use std::lazy::SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);
@@ -62,12 +68,18 @@ mod tests {
     }
 
     const PERIOD: usize = 4;
-    static INPUTS: &[f64] = &[6.0, 7.0, 8.0, 3.0, 2.0, 4.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        vec![6.0, 7.0, 8.0, 3.0, 2.0, 4.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: &[f64] = &[0.0, 0.25, 0.5, -0.25, -0.5, -0.5];
 
     test_indicator! {
         new: AroonOscillator::new(PERIOD),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
@@ -77,7 +89,7 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

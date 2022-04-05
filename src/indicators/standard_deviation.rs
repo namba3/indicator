@@ -1,6 +1,4 @@
-use crate::{
-    Current, Indicator, InvalidRangeError, NextExt, Parameter, Price, Range, Reset, Result,
-};
+use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
 use alloc::collections::VecDeque;
 
 /// Standard Deviation
@@ -33,12 +31,8 @@ impl StandardDeviation {
             })
         }
     }
-}
 
-impl Indicator for StandardDeviation {
-    type Input = f64;
-    type Output = StandardDeviationOutput;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
+    fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         match &mut self.mean_sse {
             Some((mean, sse)) => {
                 let old_input = self.ring.pop_front().unwrap();
@@ -60,6 +54,10 @@ impl Indicator for StandardDeviation {
         self.current().unwrap()
     }
 }
+
+impl Indicator for StandardDeviation {
+    type Output = StandardDeviationOutput;
+}
 impl Current for StandardDeviation {
     fn current(&self) -> Option<Self::Output> {
         if let Some((mean, sse)) = self.mean_sse {
@@ -73,9 +71,14 @@ impl Current for StandardDeviation {
         }
     }
 }
-impl<Input: Price> NextExt<&Input> for StandardDeviation {
-    fn next_ext(&mut self, input: &Input) -> Self::Output {
-        self.next(input.price())
+impl Next<f64> for StandardDeviation {
+    fn next(&mut self, input: f64) -> Self::Output {
+        self._next(input)
+    }
+}
+impl<Input: Price> Next<&Input> for StandardDeviation {
+    fn next(&mut self, input: &Input) -> Self::Output {
+        self._next(input.price())
     }
 }
 impl Reset for StandardDeviation {
@@ -109,7 +112,13 @@ mod tests {
     }
 
     const PERIOD: usize = 5;
-    static INPUTS: &[f64] = &[100.0, 104.0, 102.0, 102.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [100.0, 104.0, 102.0, 102.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: SyncLazy<Box<[StandardDeviationOutput]>> = SyncLazy::new(|| {
         [
             (100.0, 0.0),
@@ -125,7 +134,7 @@ mod tests {
 
     test_indicator! {
         new: StandardDeviation::new(PERIOD),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
@@ -135,7 +144,7 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

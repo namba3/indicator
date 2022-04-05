@@ -1,4 +1,4 @@
-use crate::{Current, Indicator, NextExt, Reset};
+use crate::{Current, Indicator, Next, Reset};
 
 ///
 pub struct Mature<I: Indicator> {
@@ -16,25 +16,14 @@ impl<I: Indicator> Mature<I> {
     }
 }
 impl<I: Indicator> Indicator for Mature<I> {
-    type Input = I::Input;
     type Output = Option<I::Output>;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
-        let output = self.i.next(input);
-        if self.cnt <= 1 {
-            self.cnt = 0;
-            Some(output)
-        } else {
-            self.cnt -= 1;
-            None
-        }
-    }
 }
-impl<I: Indicator, N> NextExt<N> for Mature<I>
+impl<I: Indicator, N> Next<N> for Mature<I>
 where
-    I: NextExt<N>,
+    I: Next<N>,
 {
-    fn next_ext(&mut self, input: N) -> Self::Output {
-        let output = self.i.next_ext(input);
+    fn next(&mut self, input: N) -> Self::Output {
+        let output = self.i.next(input);
         if self.cnt <= 1 {
             self.cnt = 0;
             Some(output)
@@ -82,7 +71,13 @@ mod tests {
     }
     const PERIOD: usize = 5;
     const MATURE_PERIOD: usize = 3;
-    static INPUTS: &[f64] = &[100.0, 101.0, 101.0, 102.0, 102.0, 102.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [100.0, 101.0, 101.0, 102.0, 102.0, 102.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: SyncLazy<Box<[Option<f64>]>> = SyncLazy::new(|| {
         [100.0, 100.2, 100.4, 100.8, 101.2, 101.6]
             .into_iter()
@@ -94,11 +89,11 @@ mod tests {
 
     test_indicator! {
         new: Sma::new(PERIOD).map(|sma| Mature::new(sma, MATURE_PERIOD)),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {
@@ -139,7 +134,7 @@ mod tests {
         let inputs = RANDOM_DATA.iter().map(|x| x.price());
 
         for x in inputs {
-            let value = Indicator::next(&mut indicator, x);
+            let value = Next::next(&mut indicator, x);
             let current = indicator.current();
             match value {
                 Some(value) => {

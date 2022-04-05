@@ -73,18 +73,17 @@ impl<T: High + Low + Open + Close + Volume> Candlestick for T {}
 
 /// Indicator
 pub trait Indicator {
-    type Input;
     type Output;
-    fn next(&mut self, input: Self::Input) -> Self::Output;
+}
+
+/// Next
+pub trait Next<Input>: Indicator {
+    fn next(&mut self, input: Input) -> Self::Output;
 }
 
 /// Current
 pub trait Current: Indicator {
     fn current(&self) -> Option<Self::Output>;
-}
-/// Next
-pub trait NextExt<Input>: Indicator {
-    fn next_ext(&mut self, input: Input) -> Self::Output;
 }
 /// Reset
 pub trait Reset {

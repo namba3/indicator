@@ -1,10 +1,10 @@
-use crate::{Current, Indicator, NextExt, Reset};
+use crate::{Current, Indicator, Next, Reset};
 
 /// Create a new indicator by combining the two indicators in serial.
 pub struct Composition<Inner, Outer>
 where
     Inner: Indicator,
-    Outer: Indicator<Input = Inner::Output>,
+    Outer: Indicator + Next<Inner::Output>,
 {
     inner: Inner,
     outer: Outer,
@@ -12,7 +12,7 @@ where
 impl<Inner, Outer> Composition<Inner, Outer>
 where
     Inner: Indicator,
-    Outer: Indicator<Input = Inner::Output>,
+    Outer: Indicator + Next<Inner::Output>,
 {
     pub(crate) fn new(inner: Inner, outer: Outer) -> Self {
         Self { inner, outer }
@@ -21,27 +21,23 @@ where
 impl<Inner, Outer> Indicator for Composition<Inner, Outer>
 where
     Inner: Indicator,
-    Outer: Indicator<Input = Inner::Output>,
+    Outer: Indicator + Next<Inner::Output>,
 {
-    type Input = Inner::Input;
     type Output = Outer::Output;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
-        self.outer.next(self.inner.next(input))
-    }
 }
-impl<Inner, Outer, N> NextExt<N> for Composition<Inner, Outer>
+impl<Inner, Outer, N> Next<N> for Composition<Inner, Outer>
 where
-    Inner: Indicator + NextExt<N>,
-    Outer: Indicator<Input = Inner::Output>,
+    Inner: Indicator + Next<N>,
+    Outer: Indicator + Next<Inner::Output>,
 {
-    fn next_ext(&mut self, input: N) -> Self::Output {
-        self.outer.next(self.inner.next_ext(input))
+    fn next(&mut self, input: N) -> Self::Output {
+        self.outer.next(self.inner.next(input))
     }
 }
 impl<Inner, Outer> Current for Composition<Inner, Outer>
 where
     Inner: Indicator,
-    Outer: Indicator<Input = Inner::Output> + Current,
+    Outer: Indicator + Next<Inner::Output> + Current,
 {
     fn current(&self) -> Option<Self::Output> {
         self.outer.current()
@@ -50,7 +46,7 @@ where
 impl<Inner, Outer> Reset for Composition<Inner, Outer>
 where
     Inner: Indicator + Reset,
-    Outer: Indicator<Input = Inner::Output> + Reset,
+    Outer: Indicator + Next<Inner::Output> + Reset,
 {
     fn reset(&mut self) {
         self.inner.reset();
@@ -74,7 +70,13 @@ mod tests {
     }
     const RSI_PERIOD: usize = 3;
     const SMA_PERIOD: usize = 2;
-    static INPUTS: &[f64] = &[100.0, 101.0, 100.0, 100.0, 100.0, 102.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [100.0, 101.0, 100.0, 100.0, 100.0, 102.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: SyncLazy<Box<[f64]>> =
         SyncLazy::new(|| [0.5, 0.75, 0.7, 0.4, 0.4, 0.6405940594].into());
 
@@ -84,14 +86,14 @@ mod tests {
             (Err(why), _) => Err(why),
             (Ok(_), Err(why)) => Err(why),
         },
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             current: {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

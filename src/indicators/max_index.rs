@@ -1,6 +1,4 @@
-use crate::{
-    Current, Indicator, InvalidRangeError, NextExt, Parameter, Price, Range, Reset, Result,
-};
+use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
 use alloc::collections::VecDeque;
 
 /// Maximum Index (Number of days elapsed from the date of the highest price)
@@ -26,12 +24,8 @@ impl MaxIndex {
             })
         }
     }
-}
 
-impl Indicator for MaxIndex {
-    type Input = f64;
-    type Output = usize;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
+    fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         match &mut self.current {
             Some(max_index) => {
                 let max = self.ring[*max_index];
@@ -61,14 +55,23 @@ impl Indicator for MaxIndex {
         self.current().unwrap()
     }
 }
+
+impl Indicator for MaxIndex {
+    type Output = usize;
+}
 impl Current for MaxIndex {
     fn current(&self) -> Option<Self::Output> {
         self.current
     }
 }
-impl<Input: Price> NextExt<&Input> for MaxIndex {
-    fn next_ext(&mut self, input: &Input) -> Self::Output {
-        self.next(input.price())
+impl Next<f64> for MaxIndex {
+    fn next(&mut self, input: f64) -> Self::Output {
+        self._next(input)
+    }
+}
+impl<Input: Price> Next<&Input> for MaxIndex {
+    fn next(&mut self, input: &Input) -> Self::Output {
+        self._next(input.price())
     }
 }
 impl Reset for MaxIndex {
@@ -80,6 +83,8 @@ impl Reset for MaxIndex {
 
 #[cfg(test)]
 mod tests {
+    use std::lazy::SyncLazy;
+
     use super::*;
     use crate::test_helper::*;
 
@@ -92,12 +97,18 @@ mod tests {
     }
 
     const PERIOD: usize = 2;
-    static INPUTS: &[f64] = &[6.0, 7.0, 8.0, 3.0, 2.0, 4.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [6.0, 7.0, 8.0, 3.0, 2.0, 4.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: &[usize] = &[0, 0, 0, 1, 1, 0];
 
     test_indicator! {
         new: MaxIndex::new(PERIOD),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
@@ -107,7 +118,7 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

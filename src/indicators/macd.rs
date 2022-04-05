@@ -1,7 +1,6 @@
 use crate::operators::Diff;
 use crate::{
-    Current, Ema, Indicator, InvalidBinaryRelationError, NextExt, Parameter, Price, Reset, Result,
-    Sma,
+    Current, Ema, Indicator, InvalidBinaryRelationError, Next, Parameter, Price, Reset, Result, Sma,
 };
 
 /// Moving Average Convergence Divergence
@@ -11,6 +10,10 @@ pub struct Macd {
 }
 
 impl Macd {
+    pub const DEFAULT_SHORT_PERIOD: usize = 12;
+    pub const DEFAULT_LONG_PERIOD: usize = 26;
+    pub const DEFAULT_SIGNAL_PERIOD: usize = 9;
+
     pub fn new(short_period: usize, long_period: usize, signal_period: usize) -> Result<Self> {
         if !(short_period < long_period) {
             return Err(InvalidBinaryRelationError {
@@ -27,9 +30,10 @@ impl Macd {
         })
     }
 
-    pub const DEFAULT_SHORT_PERIOD: usize = 12;
-    pub const DEFAULT_LONG_PERIOD: usize = 26;
-    pub const DEFAULT_SIGNAL_PERIOD: usize = 9;
+    fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
+        let _ = self.signal.next(self.macd.next((input, input)));
+        self.current().unwrap()
+    }
 }
 impl Default for Macd {
     fn default() -> Self {
@@ -44,12 +48,7 @@ impl Default for Macd {
 }
 
 impl Indicator for Macd {
-    type Input = f64;
     type Output = MacdOutput;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
-        let _ = self.signal.next(self.macd.next((input, input)));
-        self.current().unwrap()
-    }
 }
 impl Current for Macd {
     fn current(&self) -> Option<Self::Output> {
@@ -64,9 +63,14 @@ impl Current for Macd {
         }
     }
 }
-impl<Input: Price> NextExt<&Input> for Macd {
-    fn next_ext(&mut self, input: &Input) -> Self::Output {
-        self.next(input.price())
+impl Next<f64> for Macd {
+    fn next(&mut self, input: f64) -> Self::Output {
+        self._next(input)
+    }
+}
+impl<Input: Price> Next<&Input> for Macd {
+    fn next(&mut self, input: &Input) -> Self::Output {
+        self._next(input.price())
     }
 }
 impl Reset for Macd {
@@ -124,7 +128,13 @@ mod tests {
     const SHORT_PERIOD: usize = 2;
     const LONG_PERIOD: usize = 4;
     const SIGNAL_PERIOD: usize = 2;
-    static INPUTS: &[f64] = &[100.0, 200.0, 300.0, 200.0, 100.0, 0.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [100.0, 200.0, 300.0, 200.0, 100.0, 0.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: SyncLazy<Box<[MacdOutput]>> = SyncLazy::new(|| {
         [
             (0.0, 0.0, 0.0),
@@ -142,7 +152,7 @@ mod tests {
 
     test_indicator! {
         new: Macd::new(SHORT_PERIOD, LONG_PERIOD, SIGNAL_PERIOD),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
@@ -156,7 +166,7 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

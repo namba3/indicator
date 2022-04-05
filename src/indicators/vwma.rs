@@ -1,5 +1,5 @@
 use crate::{
-    Current, Indicator, InvalidRangeError, NextExt, Parameter, Price, Range, Reset, Result, Volume,
+    Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result, Volume,
 };
 use alloc::collections::VecDeque;
 
@@ -26,12 +26,8 @@ impl Vwma {
             })
         }
     }
-}
 
-impl Indicator for Vwma {
-    type Input = (f64, f64);
-    type Output = f64;
-    fn next(&mut self, (price, volume): Self::Input) -> Self::Output {
+    fn _next(&mut self, price: f64, volume: f64) -> <Self as Indicator>::Output {
         match &mut self.sum {
             Some((sum, total_volume)) => {
                 let (old_price, old_volume) = self.ring.pop_front().unwrap();
@@ -57,14 +53,23 @@ impl Indicator for Vwma {
         self.current().unwrap()
     }
 }
+
+impl Indicator for Vwma {
+    type Output = f64;
+}
 impl Current for Vwma {
     fn current(&self) -> Option<Self::Output> {
         self.sum.map(|(sum, total_volume)| sum / total_volume)
     }
 }
-impl<Input: Price + Volume> NextExt<&Input> for Vwma {
-    fn next_ext(&mut self, input: &Input) -> Self::Output {
-        self.next((input.price(), input.volume()))
+impl Next<(f64, f64)> for Vwma {
+    fn next(&mut self, (price, volume): (f64, f64)) -> Self::Output {
+        self._next(price, volume)
+    }
+}
+impl<Input: Price + Volume> Next<&Input> for Vwma {
+    fn next(&mut self, input: &Input) -> Self::Output {
+        self._next(input.price(), input.volume())
     }
 }
 impl Reset for Vwma {
@@ -76,6 +81,8 @@ impl Reset for Vwma {
 
 #[cfg(test)]
 mod tests {
+    use std::lazy::SyncLazy;
+
     use super::*;
     use crate::{test_helper::*, Volume};
 
@@ -93,19 +100,25 @@ mod tests {
     }
 
     const PERIOD: usize = 4;
-    static INPUTS: &[(f64, f64)] = &[
-        (101.0, 1.0),
-        (102.0, 1.0),
-        (101.0, 2.0),
-        (102.0, 2.0),
-        (102.0, 3.0),
-        (102.0, 1.0),
-    ];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [
+            (101.0, 1.0),
+            (102.0, 1.0),
+            (101.0, 2.0),
+            (102.0, 2.0),
+            (102.0, 3.0),
+            (102.0, 1.0),
+        ]
+        .into_iter()
+        .map(|(price, volume)| TestItem(price, volume))
+        .collect::<Vec<_>>()
+        .into_boxed_slice()
+    });
     static OUTPUTS: &[f64] = &[101.0, 101.25, 101.2, 101.5, 101.75, 101.75];
 
     test_indicator! {
         new: Vwma::new(PERIOD),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| (x.price(), x.volume())),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
@@ -115,7 +128,7 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| (x.price(), x.volume())),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|(x,y)| TestItem(*x,*y)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

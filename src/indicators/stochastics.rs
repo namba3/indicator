@@ -1,4 +1,4 @@
-use crate::{Current, Indicator, Max, Min, NextExt, Price, Reset, Result, Sma};
+use crate::{Current, Indicator, Max, Min, Next, Price, Reset, Result, Sma};
 
 /// Stochastics
 ///
@@ -13,6 +13,10 @@ pub struct Stochastics {
     current: Option<StochasticsOutput>,
 }
 impl Stochastics {
+    pub const DEFAULT_N_PERIOD: usize = 14;
+    pub const DEFAULT_M_PERIOD: usize = 3;
+    pub const DEFAULT_X_PERIOD: usize = 3;
+
     ///
     pub fn new(n_period: usize, m_period: usize, x_period: usize) -> Result<Self> {
         let min = Min::new(n_period)?;
@@ -30,26 +34,7 @@ impl Stochastics {
         })
     }
 
-    pub const DEFAULT_N_PERIOD: usize = 14;
-    pub const DEFAULT_M_PERIOD: usize = 3;
-    pub const DEFAULT_X_PERIOD: usize = 3;
-}
-impl Default for Stochastics {
-    fn default() -> Self {
-        Self {
-            min: Min::new(Self::DEFAULT_N_PERIOD).unwrap(),
-            max: Max::new(Self::DEFAULT_N_PERIOD).unwrap(),
-            d_numerator: Sma::new(Self::DEFAULT_M_PERIOD).unwrap(),
-            d_denominator: Sma::new(Self::DEFAULT_M_PERIOD).unwrap(),
-            slow_d: Sma::new(Self::DEFAULT_X_PERIOD).unwrap(),
-            current: None,
-        }
-    }
-}
-impl Indicator for Stochastics {
-    type Input = f64;
-    type Output = StochasticsOutput;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
+    fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         let min = self.min.next(input);
         let max = self.max.next(input);
 
@@ -85,14 +70,34 @@ impl Indicator for Stochastics {
         self.current().unwrap()
     }
 }
+impl Default for Stochastics {
+    fn default() -> Self {
+        Self {
+            min: Min::new(Self::DEFAULT_N_PERIOD).unwrap(),
+            max: Max::new(Self::DEFAULT_N_PERIOD).unwrap(),
+            d_numerator: Sma::new(Self::DEFAULT_M_PERIOD).unwrap(),
+            d_denominator: Sma::new(Self::DEFAULT_M_PERIOD).unwrap(),
+            slow_d: Sma::new(Self::DEFAULT_X_PERIOD).unwrap(),
+            current: None,
+        }
+    }
+}
+impl Indicator for Stochastics {
+    type Output = StochasticsOutput;
+}
 impl Current for Stochastics {
     fn current(&self) -> Option<Self::Output> {
         self.current
     }
 }
-impl<Input: Price> NextExt<&Input> for Stochastics {
-    fn next_ext(&mut self, input: &Input) -> Self::Output {
-        self.next(input.price())
+impl Next<f64> for Stochastics {
+    fn next(&mut self, input: f64) -> Self::Output {
+        self._next(input)
+    }
+}
+impl<Input: Price> Next<&Input> for Stochastics {
+    fn next(&mut self, input: &Input) -> Self::Output {
+        self._next(input.price())
     }
 }
 impl Reset for Stochastics {
@@ -150,7 +155,13 @@ mod tests {
     const N_PERIOD: usize = 4;
     const M_PERIOD: usize = 2;
     const X_PERIOD: usize = 2;
-    static INPUTS: &[f64] = &[100.0, 101.0, 102.0, 101.0, 100.0, 99.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [100.0, 101.0, 102.0, 101.0, 100.0, 99.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: SyncLazy<Box<[StochasticsOutput]>> = SyncLazy::new(|| {
         [
             (0.5, 0.5, 0.5),
@@ -168,7 +179,7 @@ mod tests {
 
     test_indicator! {
         new: Stochastics::new(N_PERIOD, M_PERIOD, X_PERIOD),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
@@ -182,7 +193,7 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

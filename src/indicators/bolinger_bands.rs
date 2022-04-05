@@ -1,5 +1,5 @@
 use crate::{
-    Current, Indicator, InvalidRangeError, NextExt, Parameter, Price, Range, Reset, Result,
+    Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
     StandardDeviation,
 };
 
@@ -33,15 +33,15 @@ impl BolingerBands {
             })
         }
     }
-}
 
-impl Indicator for BolingerBands {
-    type Input = f64;
-    type Output = BolingerBandsOutput;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
+    fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         let _ = self.sd.next(input);
         self.current().unwrap()
     }
+}
+
+impl Indicator for BolingerBands {
+    type Output = BolingerBandsOutput;
 }
 impl Current for BolingerBands {
     fn current(&self) -> Option<Self::Output> {
@@ -57,9 +57,14 @@ impl Current for BolingerBands {
         }
     }
 }
-impl<Input: Price> NextExt<&Input> for BolingerBands {
-    fn next_ext(&mut self, input: &Input) -> Self::Output {
-        self.next(input.price())
+impl Next<f64> for BolingerBands {
+    fn next(&mut self, input: f64) -> Self::Output {
+        self._next(input)
+    }
+}
+impl<Input: Price> Next<&Input> for BolingerBands {
+    fn next(&mut self, input: &Input) -> Self::Output {
+        self._next(input.price())
     }
 }
 impl Reset for BolingerBands {
@@ -94,7 +99,13 @@ mod tests {
 
     const PERIOD: usize = 5;
     const MULTIPLIER: f64 = 2.0;
-    static INPUTS: &[f64] = &[100.0, 104.0, 102.0, 102.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [100.0, 104.0, 102.0, 102.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: SyncLazy<Box<[BolingerBandsOutput]>> = SyncLazy::new(|| {
         [
             (100.0, 100.0, 100.0),
@@ -114,7 +125,7 @@ mod tests {
 
     test_indicator! {
         new: BolingerBands::new(PERIOD, MULTIPLIER),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
@@ -124,7 +135,7 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

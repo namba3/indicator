@@ -1,4 +1,4 @@
-use crate::{Current, Indicator, NextExt, Reset};
+use crate::{Current, Indicator, Next, Reset};
 
 /// Create a new indicator that applies a projection to the output of the indicator.
 pub struct Map<I, F, R>
@@ -29,11 +29,7 @@ where
     I: Indicator,
     F: FnMut(I::Output) -> R,
 {
-    type Input = I::Input;
     type Output = R;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
-        (self.f)(self.i.next(input))
-    }
 }
 
 impl<I, F, R> Current for Map<I, F, R>
@@ -46,13 +42,13 @@ where
     }
 }
 
-impl<I, F, R, N> NextExt<N> for Map<I, F, R>
+impl<I, F, N, R> Next<N> for Map<I, F, R>
 where
-    I: Indicator + NextExt<N>,
+    I: Indicator + Next<N>,
     F: FnMut(I::Output) -> R,
 {
-    fn next_ext(&mut self, input: N) -> Self::Output {
-        (self.f)(self.i.next_ext(input))
+    fn next(&mut self, input: N) -> Self::Output {
+        (self.f)(self.i.next(input))
     }
 }
 
@@ -84,7 +80,13 @@ mod tests {
     fn f(x: f64) -> f64 {
         x * x
     }
-    static INPUTS: &[f64] = &[100.0, 101.0, 101.0, 102.0, 102.0, 102.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [100.0, 101.0, 101.0, 102.0, 102.0, 102.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: SyncLazy<Box<[f64]>> = SyncLazy::new(|| {
         [100.0, 100.2, 100.4, 100.8, 101.2, 101.6]
             .into_iter()
@@ -95,14 +97,14 @@ mod tests {
 
     test_indicator! {
         new: Sma::new(PERIOD).map(|sma| Map::new(sma, f)),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             current: {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

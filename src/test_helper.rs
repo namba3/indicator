@@ -147,7 +147,7 @@ macro_rules! test_next {
             assert_eq!(inputs.len(), outputs.len());
 
             for (i, x) in inputs.into_iter().enumerate() {
-                let x = Round::round(Indicator::next(&mut indicator, x));
+                let x = Round::round(Next::next(&mut indicator, x));
                 let correct = Round::round(outputs[i]);
                 assert_eq!(x, correct);
             }
@@ -208,7 +208,7 @@ macro_rules! test_next_ext {
     } => {
         #[test]
         fn next_ext() -> crate::Result<()> {
-            let new:crate::Result<_> = $new;
+            let new: crate::Result<_> = $new;
             let mut indicator = new?;
 
             let inputs: Vec<_> = $inputs.into_iter().collect();
@@ -217,7 +217,7 @@ macro_rules! test_next_ext {
             assert_eq!(inputs.len(), outputs.len());
 
             for (i, x) in inputs.into_iter().enumerate() {
-                let x = Round::round(NextExt::next_ext(&mut indicator, &x));
+                let x = Round::round(Next::next(&mut indicator, x));
                 let correct = Round::round(outputs[i]);
                 assert_eq!(x, correct);
             }
@@ -241,13 +241,13 @@ macro_rules! test_reset {
 
             let mut v = Vec::with_capacity(inputs.len());
             for x in inputs.iter().copied() {
-                v.push(Indicator::next(&mut indicator, x));
+                v.push(Next::next(&mut indicator, x));
             }
 
             Reset::reset(&mut indicator);
 
             for (i, x) in inputs.iter().copied().enumerate() {
-                assert_eq!(Indicator::next(&mut indicator, x), v[i]);
+                assert_eq!(Next::next(&mut indicator, x), v[i]);
             }
 
             Ok(())
@@ -286,7 +286,7 @@ macro_rules! test_current {
             let inputs: Vec<_> = $inputs.into_iter().collect();
 
             for x in inputs.iter().copied() {
-                let value = Indicator::next(&mut indicator, x);
+                let value = Next::next(&mut indicator, x);
                 assert_eq!(Current::current(&indicator), Some(value.into()));
             }
 

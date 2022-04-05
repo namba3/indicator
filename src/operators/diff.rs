@@ -1,4 +1,4 @@
-use crate::{Current, Indicator, Reset};
+use crate::{Current, Indicator, Next, Reset};
 use core::ops::Sub;
 
 pub struct Diff<Lhs, Rhs>
@@ -26,10 +26,17 @@ where
     Rhs: Indicator<Output = Lhs::Output>,
     Lhs::Output: Sub,
 {
-    type Input = (Lhs::Input, Rhs::Input);
     type Output = <Lhs::Output as Sub>::Output;
-    fn next(&mut self, (l, r): Self::Input) -> Self::Output {
-        self.lhs.next(l) - self.rhs.next(r)
+}
+
+impl<Lhs, Rhs, IL, IR> Next<(IL, IR)> for Diff<Lhs, Rhs>
+where
+    Lhs: Indicator + Next<IL>,
+    Rhs: Indicator<Output = Lhs::Output> + Next<IR>,
+    Lhs::Output: Sub,
+{
+    fn next(&mut self, (input_l, input_r): (IL, IR)) -> Self::Output {
+        self.lhs.next(input_l) - self.rhs.next(input_r)
     }
 }
 

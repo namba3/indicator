@@ -1,5 +1,5 @@
 use crate::{
-    Current, Indicator, InvalidRangeError, MaxIndex, MinIndex, NextExt, Parameter, Price, Range,
+    Current, Indicator, InvalidRangeError, MaxIndex, MinIndex, Next, Parameter, Price, Range,
     Reset, Result,
 };
 
@@ -13,6 +13,8 @@ pub struct AroonIndicator {
     min_index: MinIndex,
 }
 impl AroonIndicator {
+    pub const DEFAULT_PERIOD: usize = 14;
+
     pub fn new(period: usize) -> Result<Self> {
         if period < 1 {
             Err(InvalidRangeError {
@@ -31,7 +33,11 @@ impl AroonIndicator {
         }
     }
 
-    pub const DEFAULT_PERIOD: usize = 14;
+    fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
+        let _ = self.min_index.next(input);
+        let _ = self.max_index.next(input);
+        self.current().unwrap()
+    }
 }
 impl Default for AroonIndicator {
     fn default() -> Self {
@@ -43,13 +49,7 @@ impl Default for AroonIndicator {
     }
 }
 impl Indicator for AroonIndicator {
-    type Input = f64;
     type Output = AroonIndicatorOutput;
-    fn next(&mut self, input: Self::Input) -> Self::Output {
-        let _ = self.min_index.next(input);
-        let _ = self.max_index.next(input);
-        self.current().unwrap()
-    }
 }
 impl Current for AroonIndicator {
     fn current(&self) -> Option<Self::Output> {
@@ -67,9 +67,14 @@ impl Current for AroonIndicator {
         }
     }
 }
-impl<Input: Price> NextExt<&Input> for AroonIndicator {
-    fn next_ext(&mut self, input: &Input) -> Self::Output {
-        self.next(input.price())
+impl Next<f64> for AroonIndicator {
+    fn next(&mut self, input: f64) -> Self::Output {
+        self._next(input)
+    }
+}
+impl<Input: Price> Next<&Input> for AroonIndicator {
+    fn next(&mut self, input: &Input) -> Self::Output {
+        self._next(input.price())
     }
 }
 impl Reset for AroonIndicator {
@@ -122,7 +127,13 @@ mod tests {
     }
 
     const PERIOD: usize = 4;
-    static INPUTS: &[f64] = &[6.0, 7.0, 8.0, 3.0, 2.0, 4.0];
+    static INPUTS: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
+        [6.0, 7.0, 8.0, 3.0, 2.0, 4.0]
+            .into_iter()
+            .map(TestItem)
+            .collect::<Vec<_>>()
+            .into_boxed_slice()
+    });
     static OUTPUTS: SyncLazy<Box<[AroonIndicatorOutput]>> = SyncLazy::new(|| {
         [
             (1.0, 1.0),
@@ -140,7 +151,7 @@ mod tests {
 
     test_indicator! {
         new: AroonIndicator::new(PERIOD),
-        inputs: INPUTS.iter().copied(),
+        inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
@@ -150,7 +161,7 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
             next_ext: {
-                inputs: INPUTS.iter().map(|x| TestItem(*x)),
+                inputs: INPUTS.iter(),
                 outputs: OUTPUTS.iter().copied(),
             },
             reset: {

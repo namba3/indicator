@@ -1,10 +1,30 @@
 use crate::{
     operators::{Composition, Map, Mature},
-    Indicator,
+    Indicator, Next,
 };
 
 /// Provides extended methods for Indicator.
 pub trait IndicatorExt: Indicator + Sized {
+    /// Mature
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use indicator::*;
+    /// # fn main () {
+    /// let sma = Sma::new(4).unwrap();
+    /// let mut sma = sma.mature(3);
+    ///
+    /// assert_eq!(sma.next(1.0), None);
+    /// assert_eq!(sma.next(2.0), None);
+    /// assert_eq!(sma.next(1.0), None);
+    /// assert_eq!(sma.next(2.0), Some(1.5));
+    /// assert_eq!(sma.next(1.0), Some(1.5));
+    /// assert_eq!(sma.next(2.0), Some(1.5));
+    /// # }
+    /// ```
+    fn mature(self, period: usize) -> Mature<Self>;
+
     /// Create a new indicator that applies a functional transformation to the output of the indicator.
     ///
     /// # Example
@@ -27,26 +47,6 @@ pub trait IndicatorExt: Indicator + Sized {
     where
         F: FnMut(Self::Output) -> R;
 
-    /// Mature
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use indicator::*;
-    /// # fn main () {
-    /// let sma = Sma::new(4).unwrap();
-    /// let mut sma = sma.mature(3);
-    ///
-    /// assert_eq!(sma.next(1.0), None);
-    /// assert_eq!(sma.next(2.0), None);
-    /// assert_eq!(sma.next(1.0), None);
-    /// assert_eq!(sma.next(2.0), Some(1.5));
-    /// assert_eq!(sma.next(1.0), Some(1.5));
-    /// assert_eq!(sma.next(2.0), Some(1.5));
-    /// # }
-    /// ```
-    fn mature(self, period: usize) -> Mature<Self>;
-
     /// Create a new indicator by combining the two indicators in serial.
     ///
     /// # Example
@@ -67,10 +67,10 @@ pub trait IndicatorExt: Indicator + Sized {
     /// }
     /// # }
     /// ```
-    fn pushforward<Inner: Indicator<Output = Self::Input>>(
-        self,
-        inner: Inner,
-    ) -> Composition<Inner, Self>;
+    fn pushforward<N, Inner>(self, inner: Inner) -> Composition<Inner, Self>
+    where
+        Self: Next<N>,
+        Inner: Indicator<Output = N>;
 
     /// Create a new indicator by combining the two indicators in serial.
     /// # Example
@@ -91,13 +91,19 @@ pub trait IndicatorExt: Indicator + Sized {
     /// }
     /// # }
     /// ```
-    fn pullback<Outer: Indicator<Input = Self::Output>>(
-        self,
-        outer: Outer,
-    ) -> Composition<Self, Outer>;
+    fn pullback<Outer>(self, outer: Outer) -> Composition<Self, Outer>
+    where
+        Outer: Indicator + Next<Self::Output>;
 }
 
-impl<I: Indicator> IndicatorExt for I {
+impl<I> IndicatorExt for I
+where
+    I: Indicator + Sized,
+{
+    fn mature(self, period: usize) -> Mature<I> {
+        Mature::new(self, period)
+    }
+
     fn map<F, R>(self, f: F) -> Map<I, F, R>
     where
         F: FnMut(I::Output) -> R,
@@ -105,18 +111,15 @@ impl<I: Indicator> IndicatorExt for I {
         Map::new(self, f)
     }
 
-    fn mature(self, period: usize) -> Mature<I> {
-        Mature::new(self, period)
-    }
-
-    fn pushforward<Inner: Indicator<Output = Self::Input>>(
-        self,
-        inner: Inner,
-    ) -> Composition<Inner, Self> {
+    fn pushforward<N, Inner>(self, inner: Inner) -> Composition<Inner, Self>
+    where
+        Self: Next<N>,
+        Inner: Indicator<Output = N>,
+    {
         Composition::new(inner, self)
     }
 
-    fn pullback<Outer: Indicator<Input = Self::Output>>(
+    fn pullback<Outer: Indicator + Next<Self::Output>>(
         self,
         outer: Outer,
     ) -> Composition<Self, Outer> {

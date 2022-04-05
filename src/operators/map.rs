@@ -22,6 +22,11 @@ where
             _phantom_r: Default::default(),
         }
     }
+
+    /// Take out the inner indicator that composes this indicator
+    pub fn decompose(self) -> I {
+        self.i
+    }
 }
 
 impl<I, F, R> Indicator for Map<I, F, R>

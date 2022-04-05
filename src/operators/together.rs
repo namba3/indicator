@@ -16,6 +16,11 @@ where
     pub(crate) fn new(lhs: Lhs, rhs: Rhs) -> Self {
         Self { lhs, rhs }
     }
+
+    /// Take out the indicators that composes this indicator
+    pub fn decompose(self) -> (Lhs, Rhs) {
+        (self.lhs, self.rhs)
+    }
 }
 impl<Lhs, Rhs> Indicator for Together<Lhs, Rhs>
 where

@@ -14,6 +14,11 @@ impl<I: Indicator> Mature<I> {
             cnt: period + 1,
         }
     }
+
+    /// Take out the inner indicator that composes this indicator
+    pub fn decompose(self) -> I {
+        self.i
+    }
 }
 impl<I: Indicator> Indicator for Mature<I> {
     type Output = Option<I::Output>;

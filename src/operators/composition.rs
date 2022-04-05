@@ -17,6 +17,11 @@ where
     pub(crate) fn new(inner: Inner, outer: Outer) -> Self {
         Self { inner, outer }
     }
+
+    /// Take out the indicators that composes this indicator
+    pub fn decompose(self) -> (Inner, Outer) {
+        (self.inner, self.outer)
+    }
 }
 impl<Inner, Outer> Indicator for Composition<Inner, Outer>
 where

@@ -29,6 +29,7 @@ pub mod error;
 pub mod indicator_ext;
 pub mod indicators;
 
+pub mod indicator_iterator;
 pub mod operators;
 
 pub use error::*;
@@ -49,6 +50,7 @@ pub trait Next<Input>: Indicator {
 pub trait Current: Indicator {
     fn current(&self) -> Option<Self::Output>;
 }
+
 /// Reset
 pub trait Reset {
     fn reset(&mut self);

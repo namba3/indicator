@@ -94,3 +94,18 @@ assert_eq!(sma.next(2.0), Some(1.5));
 assert_eq!(sma.next(1.0), Some(1.5));
 assert_eq!(sma.next(2.0), Some(1.5));
 ```
+
+### Convert Indicator to Iterator
+
+If there is an iterator of the input value for the indicator, you can create an iterator of the output value of the indicator based on it.
+
+```rust
+let sma = Sma::new(2).unwrap();
+
+let input_iter = (0..100).map(|n| f64::sin(PI / 10.0 * n as f64));
+let mut sma_iter = sma.iter_over(input_iter);
+
+while let Some(value) = sma_iter.next() {
+    println!("{value}");
+}
+```

@@ -1,4 +1,5 @@
 use crate::{
+    indicator_iterator::IndicatorIterator,
     operators::{Composition, Map, Mature, Together},
     Indicator, Next,
 };
@@ -23,7 +24,9 @@ pub trait IndicatorExt: Indicator + Sized {
     /// assert_eq!(sma.next(2.0), Some(1.5));
     /// # }
     /// ```
-    fn mature(self, period: usize) -> Mature<Self>;
+    fn mature(self, period: usize) -> Mature<Self> {
+        Mature::new(self, period)
+    }
 
     /// Create a new indicator that applies a functional transformation to the output of the indicator.
     ///
@@ -45,7 +48,10 @@ pub trait IndicatorExt: Indicator + Sized {
     /// ```
     fn map<F, R>(self, f: F) -> Map<Self, F, R>
     where
-        F: FnMut(Self::Output) -> R;
+        F: FnMut(Self::Output) -> R,
+    {
+        Map::new(self, f)
+    }
 
     /// Create a new indicator by combining the two indicators in serial.
     ///
@@ -70,7 +76,10 @@ pub trait IndicatorExt: Indicator + Sized {
     fn pushforward<N, Inner>(self, inner: Inner) -> Composition<Inner, Self>
     where
         Self: Next<N>,
-        Inner: Indicator<Output = N>;
+        Inner: Indicator<Output = N>,
+    {
+        Composition::new(inner, self)
+    }
 
     /// Create a new indicator by combining the two indicators in serial.
     ///
@@ -94,7 +103,10 @@ pub trait IndicatorExt: Indicator + Sized {
     /// ```
     fn pullback<Outer>(self, outer: Outer) -> Composition<Self, Outer>
     where
-        Outer: Indicator + Next<Self::Output>;
+        Outer: Indicator + Next<Self::Output>,
+    {
+        Composition::new(self, outer)
+    }
 
     /// Create a new indicator by combining the two indicators in parallel.
     ///
@@ -118,43 +130,40 @@ pub trait IndicatorExt: Indicator + Sized {
     /// ```
     fn together<Companion>(self, companion: Companion) -> Together<Self, Companion>
     where
-        Companion: Indicator;
-}
-
-impl<I> IndicatorExt for I
-where
-    I: Indicator + Sized,
-{
-    fn mature(self, period: usize) -> Mature<I> {
-        Mature::new(self, period)
-    }
-
-    fn map<F, R>(self, f: F) -> Map<I, F, R>
-    where
-        F: FnMut(I::Output) -> R,
-    {
-        Map::new(self, f)
-    }
-
-    fn pushforward<N, Inner>(self, inner: Inner) -> Composition<Inner, Self>
-    where
-        Self: Next<N>,
-        Inner: Indicator<Output = N>,
-    {
-        Composition::new(inner, self)
-    }
-
-    fn pullback<Outer>(self, outer: Outer) -> Composition<Self, Outer>
-    where
-        Outer: Indicator + Next<Self::Output>,
-    {
-        Composition::new(self, outer)
-    }
-
-    fn together<Companion>(self, companion: Companion) -> Together<Self, Companion>
-    where
         Companion: Indicator,
     {
         Together::new(self, companion)
     }
+
+    /// Convert indicator to iterator
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use indicator::*;
+    /// # fn main () {
+    /// use std::f64::consts::PI;
+    ///
+    /// let sma = Sma::new(2).unwrap();
+    ///
+    /// let input_iter = (0..100).map(|n| f64::sin(PI / 10.0 * n as f64));
+    /// let mut sma_iter = sma.iter_over(input_iter);
+    ///
+    /// while let Some(value) = sma_iter.next() {
+    ///     println!("{value}");
+    /// }
+    /// # }
+    /// ```
+    fn iter_over<InputIterator>(
+        self,
+        input_iterator: InputIterator,
+    ) -> IndicatorIterator<Self, InputIterator>
+    where
+        InputIterator: Iterator,
+        Self: Next<InputIterator::Item>,
+    {
+        IndicatorIterator::new(self, input_iterator)
+    }
 }
+
+impl<I> IndicatorExt for I where I: Indicator + Sized {}

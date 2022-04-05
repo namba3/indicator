@@ -78,7 +78,7 @@ for input in (0..100).map(|n| f64::sin(PI / 10.0 * n as f64)) {
 }
 ```
 
-### Easily exclude immature values
+### Exclude immature values
 
 You can exclude values ​​for periods when data is not accumulated enough.
 

@@ -3,6 +3,10 @@ name = "indicator"
 version = "0.1.0"
 edition = "2021"
 
+[[example]]
+name = "basic"
+path = "./example/basic.rs"
+
 [features]
 default = ["std"]
 std = []

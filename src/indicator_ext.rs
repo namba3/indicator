@@ -1,5 +1,5 @@
 use crate::{
-    operators::{Composition, Map, Mature},
+    operators::{Composition, Map, Mature, Together},
     Indicator, Next,
 };
 
@@ -73,6 +73,7 @@ pub trait IndicatorExt: Indicator + Sized {
         Inner: Indicator<Output = N>;
 
     /// Create a new indicator by combining the two indicators in serial.
+    ///
     /// # Example
     ///
     /// ```
@@ -94,6 +95,30 @@ pub trait IndicatorExt: Indicator + Sized {
     fn pullback<Outer>(self, outer: Outer) -> Composition<Self, Outer>
     where
         Outer: Indicator + Next<Self::Output>;
+
+    /// Create a new indicator by combining the two indicators in parallel.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use indicator::*;
+    /// # fn main () {
+    /// use std::f64::consts::PI;
+    ///
+    /// let sma = Sma::new(2).unwrap();
+    /// let rsi = Rsi::new(14).unwrap();
+    ///
+    /// let mut sma_and_rsi = sma.together(rsi);
+    ///
+    /// for input in (0..100).map(|n| f64::sin(PI / 10.0 * n as f64)) {
+    ///     let (sma_value, rsi_value) = sma_and_rsi.next(input);
+    ///     println!("{sma_value}, {rsi_value}");
+    /// }
+    /// # }
+    /// ```
+    fn together<Companion>(self, companion: Companion) -> Together<Self, Companion>
+    where
+        Companion: Indicator;
 }
 
 impl<I> IndicatorExt for I
@@ -119,10 +144,17 @@ where
         Composition::new(inner, self)
     }
 
-    fn pullback<Outer: Indicator + Next<Self::Output>>(
-        self,
-        outer: Outer,
-    ) -> Composition<Self, Outer> {
+    fn pullback<Outer>(self, outer: Outer) -> Composition<Self, Outer>
+    where
+        Outer: Indicator + Next<Self::Output>,
+    {
         Composition::new(self, outer)
+    }
+
+    fn together<Companion>(self, companion: Companion) -> Together<Self, Companion>
+    where
+        Companion: Indicator,
+    {
+        Together::new(self, companion)
     }
 }

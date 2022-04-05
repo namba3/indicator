@@ -15,3 +15,6 @@ pub use composition::*;
 
 pub mod diff;
 pub use diff::*;
+
+pub mod together;
+pub use together::*;

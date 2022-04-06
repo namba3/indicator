@@ -164,6 +164,47 @@ pub trait IndicatorExt: Indicator + Sized {
     {
         IndicatorIterator::new(self, input_iterator)
     }
+
+    #[cfg(feature = "stream")]
+    /// Convert indicator to stream
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use futures_executor::LocalPool;
+    /// # use futures_util::task::SpawnExt;
+    /// # use indicator::*;
+    /// # fn main () {
+    /// # let mut pool = LocalPool::new();
+    /// # let spawner = pool.spawner();
+    /// #
+    /// use futures_util::{stream, StreamExt};
+    /// use std::f64::consts::PI;
+    ///
+    /// # spawner.spawn(async {
+    /// let sma = Sma::new(2).unwrap();
+    ///
+    /// let input_iter = (0..100).map(|n| f64::sin(PI / 10.0 * n as f64));
+    /// let input_stream = stream::iter(input_iter);
+    /// let mut sma_stream = sma.iter_over_stream(input_stream);
+    ///
+    /// while let Some(value) = sma_stream.next().await {
+    ///     println!("{value}");
+    /// }
+    /// # }).unwrap();
+    /// # pool.run();
+    /// # }
+    /// ```
+    fn iter_over_stream<N, InputStream>(
+        self,
+        input_stream: InputStream,
+    ) -> crate::indicator_stream::IndicatorStream<Self, InputStream>
+    where
+        Self: Next<N>,
+        InputStream: futures_core::Stream<Item = N>,
+    {
+        crate::indicator_stream::IndicatorStream::new(self, input_stream)
+    }
 }
 
 impl<I> IndicatorExt for I where I: Indicator + Sized {}

@@ -32,6 +32,9 @@ pub mod indicators;
 pub mod indicator_iterator;
 pub mod operators;
 
+#[cfg(feature = "stream")]
+pub mod indicator_stream;
+
 pub use error::*;
 pub use indicator_ext::*;
 pub use indicators::*;

@@ -109,3 +109,24 @@ while let Some(value) = sma_iter.next() {
     println!("{value}");
 }
 ```
+
+### Convert Indicator to Stream
+
+If there is an stream of the input value for the indicator, you can create an stream of the output value of the indicator based on it.
+
+This requires `stream` feature to be enabled.
+
+```rust
+use futures_util::{stream, StreamExt};
+use std::f64::consts::PI;
+
+let sma = Sma::new(2).unwrap();
+
+let input_iter = (0..100).map(|n| f64::sin(PI / 10.0 * n as f64));
+let input_stream = stream::iter(input_iter);
+let mut sma_stream = sma.iter_over_stream(input_stream);
+
+while let Some(value) = sma_stream.next().await {
+    println!("{value}");
+}
+```

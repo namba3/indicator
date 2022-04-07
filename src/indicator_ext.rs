@@ -1,6 +1,6 @@
 use crate::{
     indicator_iterator::IndicatorIterator,
-    operators::{Composition, Map, Mature, Together},
+    operators::{Composition, Map, Mature, Together, Window},
     Indicator, Next,
 };
 
@@ -204,6 +204,33 @@ pub trait IndicatorExt: Indicator + Sized {
         InputStream: futures_core::Stream<Item = N>,
     {
         crate::indicator_stream::IndicatorStream::new(self, input_stream)
+    }
+
+    /// Create a new indicator that outputs the past N output values ​​of the inner indicator.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use indicator::*;
+    /// # fn main () {
+    /// let sma = Sma::new(5).unwrap();
+    ///
+    /// let mut sma_window = sma.window(3);
+    ///
+    /// assert_eq!(sma_window.next(100.0), &[&100.0, &100.0, &100.0]);
+    /// assert_eq!(sma_window.next(101.0), &[&100.0, &100.0, &100.2]);
+    /// assert_eq!(sma_window.next(101.0), &[&100.0, &100.2, &100.4]);
+    /// assert_eq!(sma_window.next(102.0), &[&100.2, &100.4, &100.8]);
+    /// assert_eq!(sma_window.next(102.0), &[&100.4, &100.8, &101.2]);
+    /// assert_eq!(sma_window.next(102.0), &[&100.8, &101.2, &101.6]);
+    ///
+    /// # }
+    /// ```
+    fn window<'a>(self, window_size: usize) -> Window<'a, Self>
+    where
+        Self: 'a,
+    {
+        Window::new(self, window_size)
     }
 }
 

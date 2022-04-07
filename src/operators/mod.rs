@@ -18,3 +18,6 @@ pub use diff::*;
 
 pub mod together;
 pub use together::*;
+
+pub mod window;
+pub use window::*;

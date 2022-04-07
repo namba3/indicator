@@ -95,6 +95,23 @@ assert_eq!(sma.next(1.0), Some(1.5));
 assert_eq!(sma.next(2.0), Some(1.5));
 ```
 
+### Windowing Indicator
+
+You can create a new indicator that outputs the past N output values ​​of the inner indicator.
+
+```rust
+let sma = Sma::new(5).unwrap();
+
+let mut sma_window = sma.window(3);
+
+assert_eq!(sma_window.next(100.0), &[&100.0, &100.0, &100.0]);
+assert_eq!(sma_window.next(101.0), &[&100.0, &100.0, &100.2]);
+assert_eq!(sma_window.next(101.0), &[&100.0, &100.2, &100.4]);
+assert_eq!(sma_window.next(102.0), &[&100.2, &100.4, &100.8]);
+assert_eq!(sma_window.next(102.0), &[&100.4, &100.8, &101.2]);
+assert_eq!(sma_window.next(102.0), &[&100.8, &101.2, &101.6]);
+```
+
 ### Convert Indicator to Iterator
 
 If there is an iterator of the input value for the indicator, you can create an iterator of the output value of the indicator based on it.

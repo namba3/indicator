@@ -68,7 +68,7 @@ where
 mod tests {
     use super::*;
     use crate::{test_helper::*, Ema, Price, Sma};
-    use std::lazy::SyncLazy;
+    use once_cell::sync::Lazy as SyncLazy;
 
     impl Round for (f64, f64) {
         fn round(self) -> Self {

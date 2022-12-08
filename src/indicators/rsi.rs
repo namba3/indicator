@@ -87,7 +87,7 @@ impl Reset for Rsi {
 
 #[cfg(test)]
 mod tests {
-    use std::lazy::SyncLazy;
+    use once_cell::sync::Lazy as SyncLazy;
 
     use super::*;
     use crate::test_helper::*;

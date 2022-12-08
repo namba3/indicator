@@ -1,5 +1,5 @@
+use once_cell::sync::Lazy as SyncLazy;
 use rand::Rng;
-use std::lazy::SyncLazy;
 
 use crate::{Candlestick, Close, High, Low, Open, Price, Volume};
 

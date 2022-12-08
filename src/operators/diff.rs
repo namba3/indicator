@@ -74,7 +74,7 @@ where
 mod tests {
     use super::*;
     use crate::{operators::Identity, test_helper::*, High, Low};
-    use std::lazy::SyncLazy;
+    use once_cell::sync::Lazy as SyncLazy;
 
     static INPUTS: &[(f64, f64)] = &[
         (0.0, 0.0),

@@ -57,7 +57,7 @@ impl Reset for AroonOscillator {
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use std::lazy::SyncLazy;
+    use once_cell::sync::Lazy as SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);

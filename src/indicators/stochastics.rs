@@ -132,7 +132,7 @@ impl Into<(f64, f64, f64)> for StochasticsOutput {
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use std::lazy::SyncLazy;
+    use once_cell::sync::Lazy as SyncLazy;
 
     impl Round for StochasticsOutput {
         fn round(self) -> Self {

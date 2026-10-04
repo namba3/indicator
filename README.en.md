@@ -201,3 +201,7 @@ cargo bench --bench indicators -- 2000000
 ```
 
 Results depend on the machine and build environment. Use them for relative comparisons on the same machine rather than comparisons across different environments.
+
+## License
+
+This project is licensed under either the [MIT license](LICENSE-MIT) or [Apache License 2.0](LICENSE-APACHE), at your option. The copyright holder named in the MIT license is the GitHub user `@namba3`.

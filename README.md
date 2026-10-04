@@ -211,3 +211,7 @@ cargo bench --bench indicators -- 2000000
 ```
 
 数値は実行環境に依存します。異なる環境間の性能比較には使わず、同じ環境での相対比較に利用してください。
+
+## ライセンス
+
+このプロジェクトは [MIT](LICENSE-MIT) または [Apache License 2.0](LICENSE-APACHE) のいずれかの条件で利用できます。MIT ライセンスの著作権者は GitHub ユーザー `@namba3` です。

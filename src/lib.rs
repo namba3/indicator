@@ -110,10 +110,13 @@ pub trait Candlestick: High + Low + Open + Close + Volume {
 
     /// Calculate pivot point
     fn pivot_point(&self) -> PivotPoint {
-        let p = self.hlc();
-        let d1 = self.high() - p;
-        let d2 = p - self.low();
-        let d3 = self.high() - self.low();
+        let high = self.high();
+        let low = self.low();
+        let close = self.close();
+        let p = candlestick_average([high, low, close], high + low + close);
+        let d1 = high - p;
+        let d2 = p - low;
+        let d3 = high - low;
         PivotPoint {
             r3: p + d2 + d3,
             r2: p + d3,
@@ -152,6 +155,8 @@ pub struct PivotPoint {
 
 #[cfg(test)]
 mod candlestick_tests {
+    use core::cell::Cell;
+
     use super::{Candlestick, Close, High, Low, Open, Volume};
 
     struct TestCandle {
@@ -241,5 +246,61 @@ mod candlestick_tests {
         assert!(candle.hloc().is_nan());
         assert!(candle.hlc().is_nan());
         assert!(candle.hlcc().is_nan());
+    }
+
+    struct CountingCandle {
+        high_reads: Cell<usize>,
+        low_reads: Cell<usize>,
+        close_reads: Cell<usize>,
+    }
+
+    impl High for CountingCandle {
+        fn high(&self) -> f64 {
+            self.high_reads.set(self.high_reads.get() + 1);
+            10.0
+        }
+    }
+
+    impl Low for CountingCandle {
+        fn low(&self) -> f64 {
+            self.low_reads.set(self.low_reads.get() + 1);
+            2.0
+        }
+    }
+
+    impl Open for CountingCandle {
+        fn open(&self) -> f64 {
+            unreachable!()
+        }
+    }
+
+    impl Close for CountingCandle {
+        fn close(&self) -> f64 {
+            self.close_reads.set(self.close_reads.get() + 1);
+            8.0
+        }
+    }
+
+    impl Volume for CountingCandle {
+        fn volume(&self) -> f64 {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn pivot_point_reads_each_required_candlestick_value_once() {
+        let candle = CountingCandle {
+            high_reads: Cell::new(0),
+            low_reads: Cell::new(0),
+            close_reads: Cell::new(0),
+        };
+
+        let pivot = candle.pivot_point();
+
+        assert_eq!(pivot.pivot_point, 20.0 / 3.0);
+        assert_eq!(pivot.r1, pivot.pivot_point + (pivot.pivot_point - 2.0));
+        assert_eq!(candle.high_reads.get(), 1);
+        assert_eq!(candle.low_reads.get(), 1);
+        assert_eq!(candle.close_reads.get(), 1);
     }
 }

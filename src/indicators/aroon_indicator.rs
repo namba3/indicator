@@ -23,8 +23,14 @@ impl AroonIndicator {
             }
             .into())
         } else {
-            let min_index = MinIndex::new(period + 1)?;
-            let max_index = MaxIndex::new(period + 1)?;
+            let index_period = period.checked_add(1).ok_or_else(|| InvalidRangeError {
+                param: Parameter::new("period", period),
+                range: Range::UpperBounded {
+                    max: usize::MAX - 1,
+                },
+            })?;
+            let min_index = MinIndex::new(index_period)?;
+            let max_index = MaxIndex::new(index_period)?;
             Ok(Self {
                 period,
                 min_index,
@@ -173,5 +179,13 @@ mod tests {
     #[test]
     fn default() {
         let _: AroonIndicator = Default::default();
+    }
+
+    #[test]
+    fn rejects_a_period_that_cannot_be_extended_for_the_index_window() {
+        assert!(matches!(
+            AroonIndicator::new(usize::MAX),
+            Err(crate::Error::InvalidUintRange(_))
+        ));
     }
 }

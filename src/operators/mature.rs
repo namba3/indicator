@@ -5,13 +5,15 @@ pub struct Mature<I: Indicator> {
     i: I,
     period: usize,
     cnt: usize,
+    matured: bool,
 }
 impl<I: Indicator> Mature<I> {
     pub(crate) fn new(i: I, period: usize) -> Self {
         Self {
             i,
             period,
-            cnt: period + 1,
+            cnt: period,
+            matured: false,
         }
     }
 
@@ -29,8 +31,8 @@ where
 {
     fn next(&mut self, input: N) -> Self::Output {
         let output = self.i.next(input);
-        if self.cnt <= 1 {
-            self.cnt = 0;
+        if self.matured || self.cnt == 0 {
+            self.matured = true;
             Some(output)
         } else {
             self.cnt -= 1;
@@ -43,7 +45,7 @@ where
     I: Current,
 {
     fn current(&self) -> Option<Self::Output> {
-        if self.cnt <= 0 {
+        if self.matured {
             self.i.current().into()
         } else {
             None
@@ -56,7 +58,8 @@ where
 {
     fn reset(&mut self) {
         self.i.reset();
-        self.cnt = self.period + 1;
+        self.cnt = self.period;
+        self.matured = false;
     }
 }
 
@@ -150,6 +153,32 @@ mod tests {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn zero_period_matures_on_first_input_and_current_is_initially_empty() -> crate::Result<()> {
+        let mut indicator = Mature::new(Sma::new(1)?, 0);
+
+        assert_eq!(indicator.current(), None);
+        assert_eq!(indicator.next(4.0), Some(4.0));
+        assert_eq!(indicator.current(), Some(Some(4.0)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn maximum_period_does_not_overflow_on_construction_or_reset() -> crate::Result<()> {
+        let mut indicator = Mature::new(Sma::new(1)?, usize::MAX);
+
+        assert_eq!(indicator.current(), None);
+        assert_eq!(indicator.next(4.0), None);
+        assert_eq!(indicator.current(), None);
+
+        indicator.reset();
+        assert_eq!(indicator.current(), None);
+        assert_eq!(indicator.next(5.0), None);
 
         Ok(())
     }

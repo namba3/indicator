@@ -25,7 +25,7 @@ impl Ema {
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         match &mut self.current {
             Some(current) => {
-                *current += (input - *current) * (2.0 / (self.period + 1) as f64);
+                *current += (input - *current) * (2.0 / (self.period as f64 + 1.0));
             }
             None => {
                 self.current = input.into();
@@ -112,6 +112,18 @@ mod tests {
         for input in [3.5, -2.0, 0.0, 9.25] {
             assert_eq!(ema.next(input), input);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn maximum_period_does_not_overflow_the_smoothing_factor() -> crate::Result<()> {
+        let mut ema = Ema::new(usize::MAX)?;
+        assert_eq!(ema.next(0.0), 0.0);
+
+        let output = ema.next(1.0);
+        assert!(output.is_finite());
+        assert!(output > 0.0);
 
         Ok(())
     }

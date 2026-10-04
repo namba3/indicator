@@ -121,6 +121,8 @@ impl<T: Display> Display for InvalidBinaryRelationError<T> {
         ))
     }
 }
+#[cfg(feature = "std")]
+impl<T: Debug + Display> std::error::Error for InvalidBinaryRelationError<T> {}
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -171,7 +173,19 @@ impl From<InvalidVolumeError> for Error {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use Error::*;
+        match self {
+            InvalidUintRange(error) => Some(error),
+            InvalidFloatRange(error) => Some(error),
+            InvalidRelation(error) => Some(error),
+            InvalidPrice(error) => Some(error),
+            InvalidVolume(error) => Some(error),
+            AllocationFailed => None,
+        }
+    }
+}
 
 pub type Result<T> = core::result::Result<T, Error>;
 
@@ -254,5 +268,29 @@ mod tests {
             "invalid price: expected price to be finite, but actually NaN."
         );
         assert_eq!(Error::AllocationFailed.to_string(), "allocation failed");
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn error_exposes_wrapped_errors_as_sources() {
+        use std::error::Error as StdError;
+
+        let errors: [Error; 5] = [
+            InvalidRangeError::new("period", 0, Range::LowerBounded { min: 1 }).into(),
+            InvalidRangeError::new("multiplier", -1.0, Range::LowerBounded { min: 0.0 }).into(),
+            InvalidBinaryRelationError {
+                operator: "<",
+                lhs: Parameter::new("short_period", 2),
+                rhs: Parameter::new("long_period", 2),
+            }
+            .into(),
+            InvalidPriceError::new(f64::NAN).into(),
+            InvalidVolumeError::new(-1.0).into(),
+        ];
+
+        for error in errors {
+            assert!(StdError::source(&error).is_some());
+        }
+        assert!(StdError::source(&Error::AllocationFailed).is_none());
     }
 }

@@ -25,7 +25,14 @@ impl Ema {
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         match &mut self.current {
             Some(current) => {
-                *current += (input - *current) * (2.0 / (self.period as f64 + 1.0));
+                let alpha = 2.0 / (self.period as f64 + 1.0);
+                if self.period == 1 {
+                    *current = input;
+                } else if current.is_sign_positive() != input.is_sign_positive() {
+                    *current = *current * (1.0 - alpha) + input * alpha;
+                } else {
+                    *current += (input - *current) * alpha;
+                }
             }
             None => {
                 self.current = input.into();
@@ -124,6 +131,20 @@ mod tests {
         let output = ema.next(1.0);
         assert!(output.is_finite());
         assert!(output > 0.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn opposite_extreme_finite_inputs_do_not_overflow() -> crate::Result<()> {
+        let mut ema = Ema::new(3)?;
+        assert_eq!(ema.next(f64::MAX), f64::MAX);
+        assert_eq!(ema.next(-f64::MAX), 0.0);
+        assert_eq!(ema.next(f64::MAX), f64::MAX / 2.0);
+
+        let mut period_one = Ema::new(1)?;
+        assert_eq!(period_one.next(f64::INFINITY), f64::INFINITY);
+        assert_eq!(period_one.next(-f64::MAX), -f64::MAX);
 
         Ok(())
     }

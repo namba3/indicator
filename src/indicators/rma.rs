@@ -25,7 +25,12 @@ impl Rma {
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         match &mut self.current {
             Some(current) => {
-                *current += (input - *current) / self.period as f64;
+                let alpha = 1.0 / self.period as f64;
+                if current.is_sign_positive() != input.is_sign_positive() {
+                    *current = *current * (1.0 - alpha) + input * alpha;
+                } else {
+                    *current += (input - *current) * alpha;
+                }
             }
             None => {
                 self.current = input.into();
@@ -109,5 +114,15 @@ mod tests {
     fn validates_minimum_period() {
         assert!(Rma::new(1).is_err());
         assert!(Rma::new(2).is_ok());
+    }
+
+    #[test]
+    fn opposite_extreme_finite_inputs_do_not_overflow() -> crate::Result<()> {
+        let mut rma = Rma::new(2)?;
+        assert_eq!(rma.next(f64::MAX), f64::MAX);
+        assert_eq!(rma.next(-f64::MAX), 0.0);
+        assert_eq!(rma.next(f64::MAX), f64::MAX / 2.0);
+
+        Ok(())
     }
 }

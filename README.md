@@ -2,8 +2,6 @@
 
 An implementation of indicators used for technical analysis.
 
-This is my private project.
-
 ## Example
 
 ```rust

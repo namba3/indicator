@@ -18,12 +18,16 @@ pub struct BolingerBandsOutput {
 }
 
 impl BolingerBands {
+    /// Creates Bollinger Bands with a finite, non-negative standard deviation multiplier.
     pub fn new(period: usize, multiplier: f64) -> Result<Self> {
         let sd = StandardDeviation::new(period)?;
-        if multiplier < 0.0 {
+        if !multiplier.is_finite() || multiplier < 0.0 {
             Err(InvalidRangeError {
                 param: Parameter::new("multiplier", multiplier),
-                range: Range::LowerBounded { min: 0.0 },
+                range: Range::BothBounded {
+                    min: 0.0,
+                    max: f64::MAX,
+                },
             }
             .into())
         } else {

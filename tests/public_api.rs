@@ -14,6 +14,21 @@ fn correctly_spelled_bollinger_bands_api_is_available() -> indicator::Result<()>
     Ok(())
 }
 
+#[test]
+fn bollinger_bands_rejects_non_finite_and_negative_multipliers() {
+    use indicator::BollingerBands;
+
+    for multiplier in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -1.0] {
+        assert!(matches!(
+            BollingerBands::new(5, multiplier),
+            Err(indicator::Error::InvalidFloatRange(_))
+        ));
+    }
+
+    assert!(BollingerBands::new(5, 0.0).is_ok());
+    assert!(BollingerBands::new(5, f64::MAX).is_ok());
+}
+
 #[derive(Clone)]
 struct Trade {
     price: f64,

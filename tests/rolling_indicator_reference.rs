@@ -1,5 +1,5 @@
 use indicator::{
-    Current, Ema, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Rma, Rsi, Sma,
+    Current, Ema, IndicatorExt, Macd, Max, MaxIndex, Min, MinIndex, Next, Reset, Rma, Rsi, Sma,
     StandardDeviation, Vwap, Vwma,
 };
 
@@ -116,6 +116,67 @@ fn rsi_matches_gain_loss_reference_across_long_sequence_and_reset() -> indicator
         previous_input = Some(input);
         average_gain = Some(next_average_gain);
         average_loss = Some(next_average_loss);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn macd_matches_ema_and_signal_references_across_long_sequence_and_reset() -> indicator::Result<()>
+{
+    const SHORT_PERIOD: usize = 8;
+    const LONG_PERIOD: usize = 21;
+    const SIGNAL_PERIOD: usize = 5;
+    let inputs = deterministic_inputs();
+    let mut macd = Macd::new(SHORT_PERIOD, LONG_PERIOD, SIGNAL_PERIOD)?;
+    let mut short_ema: Option<f64> = None;
+    let mut long_ema: Option<f64> = None;
+    let mut signal_window = Vec::with_capacity(SIGNAL_PERIOD);
+
+    for (position, input) in inputs.into_iter().enumerate() {
+        if position == 257 {
+            macd.reset();
+            short_ema = None;
+            long_ema = None;
+            signal_window.clear();
+        }
+
+        let short_alpha = 2.0 / (SHORT_PERIOD as f64 + 1.0);
+        let long_alpha = 2.0 / (LONG_PERIOD as f64 + 1.0);
+        let next_short_ema = short_ema.map_or(input, |previous| {
+            previous * (1.0 - short_alpha) + input * short_alpha
+        });
+        let next_long_ema = long_ema.map_or(input, |previous| {
+            previous * (1.0 - long_alpha) + input * long_alpha
+        });
+        let expected_macd = next_short_ema - next_long_ema;
+
+        if signal_window.is_empty() {
+            signal_window.resize(SIGNAL_PERIOD, expected_macd);
+        } else {
+            signal_window.remove(0);
+            signal_window.push(expected_macd);
+        }
+        let expected_signal = signal_window.iter().sum::<f64>() / SIGNAL_PERIOD as f64;
+        let expected_histogram = expected_macd - expected_signal;
+
+        let actual = macd.next(input);
+        let tolerance = 1.0e-12;
+        for (name, actual, expected) in [
+            ("MACD", actual.macd, expected_macd),
+            ("signal", actual.signal, expected_signal),
+            ("histogram", actual.histogram, expected_histogram),
+        ] {
+            let allowed_error = tolerance * expected.abs().max(1.0);
+            assert!(
+                (actual - expected).abs() <= allowed_error,
+                "position {position}: {name} {actual}, expected {expected}, tolerance {allowed_error}"
+            );
+        }
+        assert_eq!(macd.current(), Some(actual));
+
+        short_ema = Some(next_short_ema);
+        long_ema = Some(next_long_ema);
     }
 
     Ok(())

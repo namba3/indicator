@@ -6,13 +6,15 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Vwap {
     current: Option<f64>,
-    total_volume: f64,
+    volume_scale: f64,
+    scaled_total_volume: f64,
 }
 impl Vwap {
     pub fn new() -> Self {
         Self {
             current: None,
-            total_volume: 0.0,
+            volume_scale: 0.0,
+            scaled_total_volume: 0.0,
         }
     }
 
@@ -60,19 +62,23 @@ impl Vwap {
             return Ok(self.current());
         }
 
-        let previous_total_volume = self.total_volume;
-        self.total_volume += volume;
-        if self.total_volume == 0.0 {
-            self.current = None;
-            return Ok(None);
-        }
-
-        if previous_total_volume == 0.0 {
+        if self.volume_scale == 0.0 {
+            self.volume_scale = volume;
+            self.scaled_total_volume = 1.0;
             self.current = Some(price);
-        } else if let Some(current) = &mut self.current {
-            *current += (price - *current) * volume / self.total_volume;
         } else {
-            self.current = Some(price);
+            let scaled_volume = if volume > self.volume_scale {
+                self.scaled_total_volume *= self.volume_scale / volume;
+                self.volume_scale = volume;
+                1.0
+            } else {
+                volume / self.volume_scale
+            };
+            let updated_total_volume = self.scaled_total_volume + scaled_volume;
+            if let Some(current) = &mut self.current {
+                *current += (price - *current) * (scaled_volume / updated_total_volume);
+            }
+            self.scaled_total_volume = updated_total_volume;
         }
 
         Ok(self.current())
@@ -90,7 +96,7 @@ impl Indicator for Vwap {
 }
 impl Current for Vwap {
     fn current(&self) -> Option<Self::Output> {
-        (self.total_volume != 0.0).then_some(self.current).flatten()
+        (self.volume_scale != 0.0).then_some(self.current).flatten()
     }
 }
 impl Next<(f64, f64)> for Vwap {
@@ -107,7 +113,8 @@ impl<Input: Price + Volume> Next<&Input> for Vwap {
 impl Reset for Vwap {
     fn reset(&mut self) {
         self.current = None;
-        self.total_volume = 0.0;
+        self.volume_scale = 0.0;
+        self.scaled_total_volume = 0.0;
     }
 }
 

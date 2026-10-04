@@ -29,6 +29,19 @@ fn bollinger_bands_rejects_non_finite_and_negative_multipliers() {
     assert!(BollingerBands::new(5, f64::MAX).is_ok());
 }
 
+#[test]
+fn vwap_handles_finite_volumes_whose_sum_exceeds_f64_max() -> indicator::Result<()> {
+    let mut vwap = Vwap::new();
+
+    assert_eq!(vwap.try_next((10.0, f64::MAX))?, Some(10.0));
+    assert_eq!(vwap.try_next((20.0, f64::MAX))?, Some(15.0));
+
+    let output = vwap.try_next((40.0, f64::MAX))?.unwrap();
+    assert!((output - (70.0 / 3.0)).abs() < 1e-12);
+
+    Ok(())
+}
+
 #[derive(Clone)]
 struct Trade {
     price: f64,

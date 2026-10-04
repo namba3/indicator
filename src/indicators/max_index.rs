@@ -1,3 +1,4 @@
+use super::padded_window::{newest_first as padded_newest_first, oldest_first_from_newest};
 use super::rolling_candidates::{Direction, RollingCandidates};
 use crate::{
     Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
@@ -41,9 +42,7 @@ impl MaxIndex {
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         if self.current.is_none() {
-            for _ in 0..self.period {
-                self.ring.push_front(input);
-            }
+            self.ring.push_front(input);
             self.position = self.period - 1;
             self.nan_count = if input.is_nan() { self.period } else { 0 };
             self.fast_path = self.nan_count == 0;
@@ -57,8 +56,16 @@ impl MaxIndex {
 
         self.position = self.position.wrapping_add(1);
         let old_index = self.current.unwrap().min(self.period - 1);
-        let old_max = self.ring[old_index];
-        let old_value = self.ring.pop_back().unwrap();
+        let old_max = if old_index < self.ring.len() {
+            self.ring[old_index]
+        } else {
+            *self.ring.back().unwrap()
+        };
+        let old_value = if self.ring.len() < self.period {
+            *self.ring.back().unwrap()
+        } else {
+            self.ring.pop_back().unwrap()
+        };
         self.ring.push_front(input);
         self.nan_count -= usize::from(old_value.is_nan());
         self.nan_count += usize::from(input.is_nan());
@@ -75,9 +82,14 @@ impl MaxIndex {
                 0
             } else if old_max == old_value {
                 let mut latest_max_index = 0;
-                for (index, value) in self.ring.iter().enumerate().skip(1) {
-                    if *value > self.ring[latest_max_index] {
+                let mut latest_max_value = self.ring[0];
+                for (index, value) in padded_newest_first(&self.ring, self.period)
+                    .enumerate()
+                    .skip(1)
+                {
+                    if value > latest_max_value {
                         latest_max_index = index;
+                        latest_max_value = value;
                     }
                 }
                 latest_max_index
@@ -97,7 +109,7 @@ impl MaxIndex {
     fn rebuild_candidates(&mut self) {
         self.candidates.clear();
         let oldest_position = self.position.wrapping_sub(self.period - 1);
-        for (offset, value) in self.ring.iter().rev().copied().enumerate() {
+        for (offset, value) in oldest_first_from_newest(&self.ring, self.period).enumerate() {
             let position = oldest_position.wrapping_add(offset);
             self.candidates.push(position, value);
         }
@@ -204,6 +216,34 @@ mod tests {
                 .unwrap();
             assert_eq!(indicator.next(input), expected);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn first_input_is_stored_once_and_virtual_padding_keeps_maximum_age() -> crate::Result<()> {
+        let mut indicator = MaxIndex::new(3)?;
+        assert_eq!(indicator.next(5.0), 0);
+        assert_eq!(indicator.ring.iter().copied().collect::<Vec<_>>(), [5.0]);
+
+        assert_eq!(indicator.next(3.0), 1);
+        assert_eq!(indicator.current(), Some(1));
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [3.0, 5.0]
+        );
+
+        assert_eq!(indicator.next(2.0), 2);
+        assert_eq!(indicator.next(0.0), 2);
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [0.0, 2.0, 3.0]
+        );
+        assert_eq!(indicator.next(8.0), 0);
+
+        indicator.reset();
+        assert_eq!(indicator.next(7.0), 0);
+        assert_eq!(indicator.ring.iter().copied().collect::<Vec<_>>(), [7.0]);
 
         Ok(())
     }

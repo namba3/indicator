@@ -179,6 +179,26 @@ fn run_rolling_first_input_benchmarks(iterations: usize) {
             min.next(black_box(price_at(index)))
         });
 
+        let mut max_index = MaxIndex::new(period).expect("valid MaxIndex period");
+        run_benchmark(
+            &format!("MaxIndex/{period}/first-input"),
+            iterations,
+            |index| {
+                max_index.reset();
+                max_index.next(black_box(price_at(index))) as f64
+            },
+        );
+
+        let mut min_index = MinIndex::new(period).expect("valid MinIndex period");
+        run_benchmark(
+            &format!("MinIndex/{period}/first-input"),
+            iterations,
+            |index| {
+                min_index.reset();
+                min_index.next(black_box(price_at(index))) as f64
+            },
+        );
+
         let mut vwma = Vwma::new(period).expect("valid VWMA period");
         run_benchmark(&format!("VWMA/{period}/first-input"), iterations, |index| {
             vwma.reset();

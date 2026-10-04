@@ -76,7 +76,13 @@ impl Vwap {
             };
             let updated_total_volume = self.scaled_total_volume + scaled_volume;
             if let Some(current) = &mut self.current {
-                *current += (price - *current) * (scaled_volume / updated_total_volume);
+                let new_weight = scaled_volume / updated_total_volume;
+                let price_delta = price - *current;
+                if price_delta.is_finite() {
+                    *current += price_delta * new_weight;
+                } else {
+                    *current = *current * (1.0 - new_weight) + price * new_weight;
+                }
             }
             self.scaled_total_volume = updated_total_volume;
         }

@@ -42,6 +42,16 @@ fn vwap_handles_finite_volumes_whose_sum_exceeds_f64_max() -> indicator::Result<
     Ok(())
 }
 
+#[test]
+fn vwap_handles_finite_prices_with_an_unrepresentable_difference() -> indicator::Result<()> {
+    let mut vwap = Vwap::new();
+
+    assert_eq!(vwap.try_next((-f64::MAX, 1.0))?, Some(-f64::MAX));
+    assert_eq!(vwap.try_next((f64::MAX, 1.0))?, Some(0.0));
+
+    Ok(())
+}
+
 #[derive(Clone)]
 struct Trade {
     price: f64,

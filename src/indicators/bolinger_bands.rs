@@ -49,13 +49,40 @@ impl Current for BolingerBands {
         if let Some(x) = self.sd.current() {
             Self::Output {
                 average: x.mean,
-                upper_bound: x.mean + x.sd * self.multiplier,
-                lower_bound: x.mean - x.sd * self.multiplier,
+                upper_bound: Self::bound(x.mean, x.sd, self.multiplier, true),
+                lower_bound: Self::bound(x.mean, x.sd, self.multiplier, false),
             }
             .into()
         } else {
             None
         }
+    }
+}
+impl BolingerBands {
+    fn bound(mean: f64, sd: f64, multiplier: f64, upper: bool) -> f64 {
+        let deviation = sd * multiplier;
+        let bound = if upper {
+            mean + deviation
+        } else {
+            mean - deviation
+        };
+        if bound.is_finite() || !mean.is_finite() || !sd.is_finite() {
+            return bound;
+        }
+
+        let scale = mean.abs().max(sd.abs());
+        if scale == 0.0 {
+            return mean;
+        }
+
+        let scaled_mean = mean / scale;
+        let scaled_deviation = (sd / scale) * multiplier;
+        let scaled_bound = if upper {
+            scaled_mean + scaled_deviation
+        } else {
+            scaled_mean - scaled_deviation
+        };
+        scaled_bound * scale
     }
 }
 impl Next<f64> for BolingerBands {
@@ -149,5 +176,18 @@ mod tests {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
             },
         }
+    }
+
+    #[test]
+    fn finite_band_bound_survives_intermediate_product_overflow() -> crate::Result<()> {
+        let mut bands = BolingerBands::new(2, 3.0)?;
+        let _ = bands.next(-f64::MAX);
+
+        let output = bands.next(0.0);
+        assert_eq!(output.average, -f64::MAX / 2.0);
+        assert_eq!(output.upper_bound, f64::MAX);
+        assert_eq!(output.lower_bound, f64::NEG_INFINITY);
+
+        Ok(())
     }
 }

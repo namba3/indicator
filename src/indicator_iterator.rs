@@ -2,8 +2,8 @@ use crate::{Indicator, Next};
 
 /// Applies an indicator to each item from an input iterator.
 ///
-/// The adapter preserves the input iterator's size hints and standard iterator
-/// guarantees where available.
+/// The adapter preserves size hints, exact lengths, and fused behavior when
+/// those guarantees are provided by the input iterator.
 pub struct IndicatorIterator<Inner, InputIterator>
 where
     Inner: Indicator + Next<InputIterator::Item>,
@@ -46,6 +46,18 @@ where
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.input_iterator.size_hint()
     }
+
+    fn fold<B, F>(self, init: B, mut f: F) -> B
+    where
+        Self: Sized,
+        F: FnMut(B, Self::Item) -> B,
+    {
+        let Self {
+            mut inner,
+            input_iterator,
+        } = self;
+        input_iterator.fold(init, |acc, input| f(acc, inner.next(input)))
+    }
 }
 
 impl<Inner, InputIterator> ExactSizeIterator for IndicatorIterator<Inner, InputIterator>
@@ -65,8 +77,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Sma;
     use crate::test_helper::*;
+    use crate::{IndicatorExt, Sma};
 
     #[test]
     fn test() -> crate::Result<()> {
@@ -103,6 +115,21 @@ mod tests {
         assert_eq!(iter.next(), None);
         assert_eq!(iter.next(), None);
 
+        Ok(())
+    }
+
+    #[test]
+    fn fold_applies_the_indicator_to_every_input_in_order() -> crate::Result<()> {
+        let sma = Sma::new(3)?;
+        let sum = sma.iter_over([1.0, 2.0, 3.0, 4.0].into_iter()).sum::<f64>();
+
+        let mut expected_sma = Sma::new(3)?;
+        let expected_sum = [1.0, 2.0, 3.0, 4.0]
+            .into_iter()
+            .map(|input| expected_sma.next(input))
+            .sum::<f64>();
+
+        assert_eq!(sum, expected_sum);
         Ok(())
     }
 }

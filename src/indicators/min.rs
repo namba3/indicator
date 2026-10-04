@@ -1,3 +1,4 @@
+use super::rolling_candidates::{Direction, RollingCandidates};
 use crate::{
     Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
     try_deque_with_capacity,
@@ -9,7 +10,7 @@ use alloc::collections::VecDeque;
 pub struct Min {
     period: usize,
     ring: VecDeque<f64>,
-    candidates: VecDeque<(usize, f64)>,
+    candidates: RollingCandidates,
     position: usize,
     nan_count: usize,
     fast_path: bool,
@@ -25,7 +26,7 @@ impl Min {
             .into())
         } else {
             let ring = try_deque_with_capacity(period)?;
-            let candidates = try_deque_with_capacity(period)?;
+            let candidates = RollingCandidates::new(Direction::Minimum, period)?;
             Ok(Self {
                 period,
                 ring,
@@ -48,7 +49,7 @@ impl Min {
             self.fast_path = self.nan_count == 0;
             self.candidates.clear();
             if self.fast_path {
-                self.candidates.push_back((self.position, input));
+                self.candidates.push(self.position, input);
             }
             self.current = Some(input);
             return input;
@@ -61,21 +62,8 @@ impl Min {
         self.nan_count += usize::from(input.is_nan());
 
         if self.fast_path && self.nan_count == 0 {
-            while self
-                .candidates
-                .front()
-                .is_some_and(|(position, _)| self.position.wrapping_sub(*position) >= self.period)
-            {
-                self.candidates.pop_front();
-            }
-            while self
-                .candidates
-                .back()
-                .is_some_and(|(_, value)| *value >= input)
-            {
-                self.candidates.pop_back();
-            }
-            self.candidates.push_back((self.position, input));
+            self.candidates.expire(self.position, self.period);
+            self.candidates.push(self.position, input);
             self.current = Some(self.candidates.front().unwrap().1);
         } else {
             let old_min = self.current.unwrap();
@@ -105,14 +93,7 @@ impl Min {
         let oldest_position = self.position.wrapping_sub(self.period - 1);
         for (offset, value) in self.ring.iter().copied().enumerate() {
             let position = oldest_position.wrapping_add(offset);
-            while self
-                .candidates
-                .back()
-                .is_some_and(|(_, candidate)| *candidate >= value)
-            {
-                self.candidates.pop_back();
-            }
-            self.candidates.push_back((position, value));
+            self.candidates.push(position, value);
         }
         self.current = Some(self.candidates.front().unwrap().1);
     }
@@ -211,7 +192,7 @@ mod tests {
         min.position = usize::MAX;
         min.fast_path = false;
         min.candidates.clear();
-        min.candidates.push_back((usize::MAX, 1.0));
+        min.candidates.push(usize::MAX, 1.0);
 
         assert_eq!(min.next(2.0), 1.0);
         assert_eq!(min.next(0.0), 0.0);

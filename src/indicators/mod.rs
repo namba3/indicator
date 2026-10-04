@@ -8,6 +8,7 @@ pub mod max_index;
 pub mod min;
 pub mod min_index;
 pub mod rma;
+mod rolling_candidates;
 pub mod rsi;
 pub mod sma;
 pub mod standard_deviation;

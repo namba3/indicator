@@ -1,6 +1,7 @@
 use indicator::{
-    AroonIndicator, AroonOscillator, Current, Ema, IndicatorExt, Macd, Max, MaxIndex, Min,
-    MinIndex, Next, Reset, Rma, Rsi, Sma, StandardDeviation, Stochastics, Vwap, Vwma,
+    AroonIndicator, AroonOscillator, BollingerBands, Current, Ema, IndicatorExt, Macd, Max,
+    MaxIndex, Min, MinIndex, Next, Reset, Rma, Rsi, Sma, StandardDeviation, Stochastics, Vwap,
+    Vwma,
 };
 
 fn deterministic_inputs() -> Vec<f64> {
@@ -81,6 +82,51 @@ fn aroon_indicators_match_naive_references_across_long_sequences_and_reset() -> 
         assert!((-1.0..=1.0).contains(&actual_oscillator));
         assert_eq!(aroon.current(), Some(actual));
         assert_eq!(oscillator.current(), Some(actual_oscillator));
+    }
+
+    Ok(())
+}
+
+#[test]
+fn bollinger_bands_match_two_pass_window_reference_across_long_sequence_and_reset()
+-> indicator::Result<()> {
+    const PERIOD: usize = 31;
+    const MULTIPLIER: f64 = 2.5;
+    let mut bands = BollingerBands::new(PERIOD, MULTIPLIER)?;
+    let mut window = Vec::with_capacity(PERIOD);
+
+    for (position, input) in deterministic_inputs().into_iter().enumerate() {
+        if position == 257 {
+            bands.reset();
+            window.clear();
+        }
+
+        push_reference_window(&mut window, PERIOD, input);
+        let expected_mean = window.iter().sum::<f64>() / PERIOD as f64;
+        let expected_sd = (window
+            .iter()
+            .map(|value| (value - expected_mean).powi(2))
+            .sum::<f64>()
+            / PERIOD as f64)
+            .sqrt();
+        let expected_upper = expected_mean + MULTIPLIER * expected_sd;
+        let expected_lower = expected_mean - MULTIPLIER * expected_sd;
+
+        let actual = bands.next(input);
+        for (name, actual_value, expected_value) in [
+            ("average", actual.average, expected_mean),
+            ("upper", actual.upper_bound, expected_upper),
+            ("lower", actual.lower_bound, expected_lower),
+        ] {
+            let tolerance = 1.0e-12 * expected_value.abs().max(1.0);
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "position {position}: {name} {actual_value}, expected {expected_value}, tolerance {tolerance}"
+            );
+        }
+        assert!(actual.lower_bound <= actual.average);
+        assert!(actual.average <= actual.upper_bound);
+        assert_eq!(bands.current(), Some(actual));
     }
 
     Ok(())

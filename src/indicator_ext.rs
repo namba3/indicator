@@ -1,5 +1,5 @@
 use crate::{
-    Indicator, Next,
+    Indicator, Next, Result,
     indicator_iterator::IndicatorIterator,
     operators::{Composition, Map, Mature, Together, Window},
 };
@@ -235,6 +235,18 @@ pub trait IndicatorExt: Indicator + Sized {
         Self::Output: Clone,
     {
         Window::new(self, window_size)
+    }
+
+    /// Create a window indicator while reporting failure to reserve its internal buffer.
+    ///
+    /// The returned snapshots from [`window`](Self::window) still allocate when produced.
+    /// Use [`Window::iter`](crate::operators::Window::iter) to inspect the current window
+    /// without allocating a snapshot.
+    fn try_window(self, window_size: usize) -> Result<Window<Self>>
+    where
+        Self::Output: Clone,
+    {
+        Window::try_new(self, window_size)
     }
 }
 

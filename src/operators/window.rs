@@ -1,6 +1,6 @@
 use alloc::{collections::VecDeque, vec::Vec};
 
-use crate::{Current, Indicator, Next, Reset};
+use crate::{Current, Indicator, Next, Reset, Result, try_deque_with_capacity};
 
 /// Create a new indicator that outputs the past N output values ​​of the inner indicator.
 pub struct Window<Inner: Indicator> {
@@ -11,12 +11,16 @@ pub struct Window<Inner: Indicator> {
 }
 impl<Inner: Indicator> Window<Inner> {
     pub(crate) fn new(inner: Inner, window_size: usize) -> Self {
-        Self {
+        Self::try_new(inner, window_size).expect("window buffer allocation failed")
+    }
+
+    pub(crate) fn try_new(inner: Inner, window_size: usize) -> Result<Self> {
+        Ok(Self {
             inner,
             window_size,
-            ring: VecDeque::with_capacity(window_size),
+            ring: try_deque_with_capacity(window_size)?,
             is_first: true,
-        }
+        })
     }
 
     /// Take out the inner indicator that composes this indicator
@@ -262,6 +266,24 @@ mod tests {
         window.next(1.0);
         assert_eq!(window.iter().count(), 0);
 
+        Ok(())
+    }
+
+    #[test]
+    fn try_window_reports_capacity_overflow() -> crate::Result<()> {
+        let result = Sma::new(1)?.try_window(usize::MAX);
+
+        assert!(matches!(result, Err(crate::Error::AllocationFailed)));
+        Ok(())
+    }
+
+    #[test]
+    fn try_window_preserves_window_behavior() -> crate::Result<()> {
+        let mut window = Sma::new(1)?.try_window(2)?;
+
+        assert_eq!(window.next(1.0), [1.0, 1.0]);
+        assert_eq!(window.next(2.0), [1.0, 2.0]);
+        assert_eq!(window.iter().copied().collect::<Vec<_>>(), [1.0, 2.0]);
         Ok(())
     }
 }

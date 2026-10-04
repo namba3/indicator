@@ -1,7 +1,7 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use indicator::{Ema, Macd, MaxIndex, Next, Rsi, Sma, Stochastics, Vwap, Vwma};
+use indicator::{Ema, Macd, Max, MaxIndex, Min, Next, Rsi, Sma, Stochastics, Vwap, Vwma};
 
 const DEFAULT_ITERATIONS: usize = 1_000_000;
 const SAMPLE_COUNT: usize = 5;
@@ -100,6 +100,14 @@ fn main() {
     run_benchmark("MaxIndex", iterations, |index| {
         max_index.next(black_box(PRICES[index % PRICES.len()])) as f64
     });
+
+    let mut max = Max::new(256).expect("valid Max period");
+    run_benchmark("Max", iterations, |index| {
+        max.next(black_box(-(index as f64)))
+    });
+
+    let mut min = Min::new(256).expect("valid Min period");
+    run_benchmark("Min", iterations, |index| min.next(black_box(index as f64)));
 
     let mut vwap = Vwap::new();
     run_benchmark("VWAP", iterations, |index| {

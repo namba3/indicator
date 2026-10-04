@@ -9,7 +9,29 @@ pub struct Vwma {
     period: usize,
     ring: VecDeque<(f64, f64)>,
     sum: Option<(f64, f64)>,
+    compensation: (f64, f64),
 }
+
+const CANCELLATION_THRESHOLD: f64 = 1.0e8;
+
+fn add_compensated(sum: &mut f64, compensation: &mut f64, value: f64) {
+    if !sum.is_finite() || !compensation.is_finite() || !value.is_finite() {
+        *sum += value;
+        *compensation = 0.0;
+        return;
+    }
+
+    let corrected_value = value - *compensation;
+    let updated_sum = *sum + corrected_value;
+    if !updated_sum.is_finite() {
+        *sum = updated_sum;
+        *compensation = 0.0;
+        return;
+    }
+    *compensation = (updated_sum - *sum) - corrected_value;
+    *sum = updated_sum;
+}
+
 impl Vwma {
     pub fn new(period: usize) -> Result<Self> {
         if period < 1 {
@@ -23,6 +45,7 @@ impl Vwma {
                 period,
                 ring: VecDeque::with_capacity(period),
                 sum: None,
+                compensation: (0.0, 0.0),
             })
         }
     }
@@ -40,16 +63,17 @@ impl Vwma {
     }
 
     fn _next(&mut self, price: f64, volume: f64) -> Option<f64> {
+        let mut removed = None;
         match &mut self.sum {
             Some((sum, total_volume)) => {
                 let (old_price, old_volume) = self.ring.pop_front().unwrap();
                 self.ring.push_back((price, volume));
+                removed = Some((old_price * old_volume, old_volume));
 
-                *sum -= old_price * old_volume;
-                *total_volume -= old_volume;
-
-                *sum += price * volume;
-                *total_volume += volume;
+                add_compensated(sum, &mut self.compensation.0, -(old_price * old_volume));
+                add_compensated(total_volume, &mut self.compensation.1, -old_volume);
+                add_compensated(sum, &mut self.compensation.0, price * volume);
+                add_compensated(total_volume, &mut self.compensation.1, volume);
             }
             None => {
                 for _ in 0..self.period {
@@ -60,10 +84,32 @@ impl Vwma {
                     volume * self.period as f64,
                 )
                     .into();
+                self.compensation = (0.0, 0.0);
+            }
+        }
+
+        if let (Some((removed_sum, removed_volume)), Some((sum, total_volume))) =
+            (removed, self.sum)
+        {
+            let sum_cancellation = requires_rebase(removed_sum, sum);
+            let volume_cancellation = requires_rebase(removed_volume, total_volume);
+            if sum_cancellation || volume_cancellation {
+                let (sum, total_volume) = self.sum.as_mut().unwrap();
+                self.compensation = (0.0, 0.0);
+                *sum = 0.0;
+                *total_volume = 0.0;
+                for (price, volume) in &self.ring {
+                    add_compensated(sum, &mut self.compensation.0, price * volume);
+                    add_compensated(total_volume, &mut self.compensation.1, *volume);
+                }
             }
         }
         self.current()
     }
+}
+
+fn requires_rebase(removed: f64, remaining: f64) -> bool {
+    removed != 0.0 && (remaining == 0.0 || removed.abs() > remaining.abs() * CANCELLATION_THRESHOLD)
 }
 
 impl Indicator for Vwma {
@@ -90,6 +136,7 @@ impl Reset for Vwma {
     fn reset(&mut self) {
         self.ring.clear();
         self.sum = None;
+        self.compensation = (0.0, 0.0);
     }
 }
 

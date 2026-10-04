@@ -1,4 +1,4 @@
-use indicator::{Current, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Sma};
+use indicator::{Current, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Sma, Vwma};
 
 fn deterministic_inputs() -> Vec<f64> {
     let mut state = 0x5eed_u64;
@@ -97,6 +97,69 @@ fn window_matches_a_naive_reference_across_updates_and_reset() -> indicator::Res
     expected.clear();
     expected.resize(WINDOW_SIZE, first_after_reset);
     assert_eq!(window.next(first_after_reset), expected);
+
+    Ok(())
+}
+
+#[test]
+fn vwma_matches_naive_recomputation_across_a_long_mixed_scale_sequence() -> indicator::Result<()> {
+    const PERIOD: usize = 37;
+    const INPUT_COUNT: usize = 20_000;
+    const PRICE_SCALES: [f64; 4] = [1.0e-6, 1.0, 1.0e3, 1.0e6];
+    const VOLUME_SCALES: [f64; 4] = [1.0e-9, 1.0e-3, 1.0, 1.0e6];
+
+    let mut state = 0x71a5_b9c3_d42e_806f_u64;
+    let inputs = (0..INPUT_COUNT)
+        .map(|index| {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
+            let price_scale = PRICE_SCALES[(index / 503) % PRICE_SCALES.len()];
+            let price_fraction = 1.0 + f64::from((state >> 32) as u32 % 10_000) / 10_000.0;
+            let volume_scale = VOLUME_SCALES[(index / 61) % VOLUME_SCALES.len()];
+            let volume_fraction = f64::from((state >> 16) as u16 % 1_000) / 1_000.0;
+            let volume = if index % 211 < 7 {
+                0.0
+            } else {
+                volume_scale * volume_fraction
+            };
+            (price_scale * price_fraction, volume)
+        })
+        .collect::<Vec<_>>();
+
+    let mut indicator = Vwma::new(PERIOD)?;
+    let mut window = Vec::with_capacity(PERIOD);
+    for (position, input) in inputs.into_iter().enumerate() {
+        if window.is_empty() {
+            window.resize(PERIOD, input);
+        } else {
+            window.remove(0);
+            window.push(input);
+        }
+
+        let weighted_sum = window
+            .iter()
+            .map(|(price, volume)| price * volume)
+            .sum::<f64>();
+        let total_volume = window.iter().map(|(_, volume)| volume).sum::<f64>();
+        let expected = (total_volume != 0.0).then_some(weighted_sum / total_volume);
+        let actual = indicator.next_option(input);
+
+        match (actual, expected) {
+            (Some(actual), Some(expected)) => {
+                let tolerance = 1.0e-5 * expected.abs().max(1.0e-6);
+                assert!(
+                    (actual - expected).abs() <= tolerance,
+                    "position {position}: actual {actual}, expected {expected}, tolerance {tolerance}"
+                );
+            }
+            (None, None) => {}
+            (actual, expected) => {
+                panic!("position {position}: actual {actual:?}, expected {expected:?}")
+            }
+        }
+        assert_eq!(indicator.current(), actual);
+    }
 
     Ok(())
 }

@@ -36,11 +36,13 @@ impl MinIndex {
                 match min {
                     min if input <= min => *min_index = 0,
                     min if min == old_value => {
-                        for (index, x) in self.ring.iter().enumerate() {
-                            if *x < self.ring[*min_index] {
-                                *min_index = index;
+                        let mut latest_min_index = 0;
+                        for (index, value) in self.ring.iter().enumerate().skip(1) {
+                            if *value < self.ring[latest_min_index] {
+                                latest_min_index = index;
                             }
                         }
+                        *min_index = latest_min_index;
                     }
                     _ => *min_index += 1,
                 }

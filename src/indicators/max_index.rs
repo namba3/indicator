@@ -36,11 +36,13 @@ impl MaxIndex {
                 match max {
                     max if max <= input => *max_index = 0,
                     max if max == old_value => {
-                        for (index, x) in self.ring.iter().enumerate() {
-                            if self.ring[*max_index] < *x {
-                                *max_index = index;
+                        let mut latest_max_index = 0;
+                        for (index, value) in self.ring.iter().enumerate().skip(1) {
+                            if *value > self.ring[latest_max_index] {
+                                latest_max_index = index;
                             }
                         }
+                        *max_index = latest_max_index;
                     }
                     _ => *max_index += 1,
                 }

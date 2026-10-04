@@ -1,3 +1,4 @@
+use super::padded_window::values as padded_values;
 use crate::{
     Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
     try_deque_with_capacity,
@@ -114,26 +115,14 @@ impl StandardDeviation {
         old_input
     }
 
-    fn window_values(&self) -> impl Iterator<Item = f64> + '_ {
-        let missing = self.period - self.ring.len();
-        self.ring
-            .front()
-            .copied()
-            .into_iter()
-            .flat_map(move |first| core::iter::repeat_n(first, missing))
-            .chain(self.ring.iter().copied())
-    }
-
     fn recompute_mean_sse(&mut self) {
         let origin = *self.ring.front().unwrap();
-        let mean_offset = self
-            .window_values()
+        let mean_offset = padded_values(&self.ring, self.period)
             .map(|value| value - origin)
             .sum::<f64>()
             / self.period as f64;
         let mean = origin + mean_offset;
-        let sse = self
-            .window_values()
+        let sse = padded_values(&self.ring, self.period)
             .map(|value| {
                 let delta = value - mean;
                 delta * delta
@@ -149,28 +138,30 @@ impl StandardDeviation {
     }
 
     fn recompute_scaled_mean_sse(&mut self) {
-        if self.window_values().any(|value| !value.is_finite()) {
+        if padded_values(&self.ring, self.period).any(|value| !value.is_finite()) {
             self.scaled_mean_sse = Some((f64::NAN, f64::NAN, f64::NAN, 0));
             return;
         }
 
-        let scale = self.window_values().map(f64::abs).fold(0.0, f64::max);
+        let scale = padded_values(&self.ring, self.period)
+            .map(f64::abs)
+            .fold(0.0, f64::max);
         if scale == 0.0 {
             self.scaled_mean_sse = Some((0.0, 0.0, 0.0, self.period));
             return;
         }
 
-        let mean =
-            self.window_values().map(|value| value / scale).sum::<f64>() / self.period as f64;
-        let sse = self
-            .window_values()
+        let mean = padded_values(&self.ring, self.period)
+            .map(|value| value / scale)
+            .sum::<f64>()
+            / self.period as f64;
+        let sse = padded_values(&self.ring, self.period)
             .map(|value| {
                 let delta = value / scale - mean;
                 delta * delta
             })
             .sum();
-        let scale_count = self
-            .window_values()
+        let scale_count = padded_values(&self.ring, self.period)
             .filter(|value| value.abs() == scale)
             .count();
         self.scaled_mean_sse = Some((scale, mean, sse, scale_count));

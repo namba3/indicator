@@ -7,6 +7,7 @@ pub mod max;
 pub mod max_index;
 pub mod min;
 pub mod min_index;
+mod padded_window;
 pub mod rma;
 mod rolling_candidates;
 pub mod rsi;

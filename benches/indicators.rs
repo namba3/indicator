@@ -147,7 +147,7 @@ fn run_window_benchmarks(iterations: usize) {
     }
 }
 
-fn run_sma_first_input_benchmarks(iterations: usize) {
+fn run_rolling_first_input_benchmarks(iterations: usize) {
     for period in PERIODS {
         let mut sma = Sma::new(period).expect("valid SMA period");
         run_benchmark(&format!("SMA/{period}/first-input"), iterations, |index| {
@@ -166,6 +166,18 @@ fn run_sma_first_input_benchmarks(iterations: usize) {
                 output.mean + output.sd
             },
         );
+
+        let mut max = Max::new(period).expect("valid Max period");
+        run_benchmark(&format!("Max/{period}/first-input"), iterations, |index| {
+            max.reset();
+            max.next(black_box(price_at(index)))
+        });
+
+        let mut min = Min::new(period).expect("valid Min period");
+        run_benchmark(&format!("Min/{period}/first-input"), iterations, |index| {
+            min.reset();
+            min.next(black_box(price_at(index)))
+        });
     }
 }
 
@@ -257,7 +269,7 @@ fn main() {
 
     run_extrema_benchmarks(iterations);
     run_window_benchmarks(iterations);
-    run_sma_first_input_benchmarks(iterations);
+    run_rolling_first_input_benchmarks(iterations);
 
     let mut vwap = Vwap::new();
     run_benchmark("VWAP", iterations, |index| {

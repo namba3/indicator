@@ -1,3 +1,4 @@
+use super::padded_window::values as padded_values;
 use super::rolling_candidates::{Direction, RollingCandidates};
 use crate::{
     Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
@@ -41,9 +42,7 @@ impl Min {
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         if self.current.is_none() {
-            for _ in 0..self.period {
-                self.ring.push_back(input);
-            }
+            self.ring.push_back(input);
             self.position = self.period - 1;
             self.nan_count = if input.is_nan() { self.period } else { 0 };
             self.fast_path = self.nan_count == 0;
@@ -56,7 +55,11 @@ impl Min {
         }
 
         self.position = self.position.wrapping_add(1);
-        let old_val = self.ring.pop_front().unwrap();
+        let old_val = if self.ring.len() < self.period {
+            *self.ring.front().unwrap()
+        } else {
+            self.ring.pop_front().unwrap()
+        };
         self.ring.push_back(input);
         self.nan_count -= usize::from(old_val.is_nan());
         self.nan_count += usize::from(input.is_nan());
@@ -70,9 +73,7 @@ impl Min {
             let min = if input <= old_min {
                 input
             } else if old_min == old_val {
-                self.ring
-                    .iter()
-                    .copied()
+                padded_values(&self.ring, self.period)
                     .reduce(|acc, x| acc.min(x))
                     .unwrap()
             } else {
@@ -91,7 +92,7 @@ impl Min {
     fn rebuild_candidates(&mut self) {
         self.candidates.clear();
         let oldest_position = self.position.wrapping_sub(self.period - 1);
-        for (offset, value) in self.ring.iter().copied().enumerate() {
+        for (offset, value) in padded_values(&self.ring, self.period).enumerate() {
             let position = oldest_position.wrapping_add(offset);
             self.candidates.push(position, value);
         }
@@ -183,6 +184,27 @@ mod tests {
         for (input, expected) in inputs.into_iter().zip(outputs) {
             assert_eq!(min.next(input), expected);
         }
+    }
+
+    #[test]
+    fn first_input_is_stored_once_and_nan_fallback_sees_virtual_padding() -> crate::Result<()> {
+        let mut min = Min::new(4)?;
+        assert_eq!(min.next(1.0), 1.0);
+        assert_eq!(min.ring.iter().copied().collect::<Vec<_>>(), [1.0]);
+
+        assert_eq!(min.next(f64::NAN), 1.0);
+        assert_eq!(min.ring[0], 1.0);
+        assert!(min.ring[1].is_nan());
+        assert_eq!(min.next(5.0), 1.0);
+        assert_eq!(min.next(4.0), 1.0);
+        assert_eq!(min.next(3.0), 3.0);
+        assert!(min.ring[0].is_nan());
+        assert_eq!(
+            min.ring.iter().copied().skip(1).collect::<Vec<_>>(),
+            [5.0, 4.0, 3.0]
+        );
+
+        Ok(())
     }
 
     #[test]

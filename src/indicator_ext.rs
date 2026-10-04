@@ -206,7 +206,7 @@ pub trait IndicatorExt: Indicator + Sized {
         crate::indicator_stream::IndicatorStream::new(self, input_stream)
     }
 
-    /// Create an indicator that returns an owned snapshot of the most recent N outputs.
+    /// Create a window over the most recent N outputs.
     ///
     /// # Example
     ///
@@ -227,26 +227,20 @@ pub trait IndicatorExt: Indicator + Sized {
     ///
     /// # }
     /// ```
-    /// Each output is an owned snapshot, so the inner output must implement `Clone`.
-    /// Use [`Window::iter`](crate::operators::Window::iter) to borrow and iterate over the current
-    /// window without creating a snapshot. Call [`Window::advance`](crate::operators::Window::advance)
-    /// followed by `iter` when the owned snapshot is not needed.
-    fn window(self, window_size: usize) -> Window<Self>
-    where
-        Self::Output: Clone,
-    {
+    /// Use [`Window::iter`](crate::operators::Window::iter) and
+    /// [`Window::advance`](crate::operators::Window::advance) to access outputs without cloning.
+    /// The owned snapshots returned by [`Next::next`] and [`Current::current`] require the inner
+    /// output to implement `Clone`.
+    fn window(self, window_size: usize) -> Window<Self> {
         Window::new(self, window_size)
     }
 
     /// Create a window indicator while reporting failure to reserve its internal buffer.
     ///
-    /// The returned snapshots from [`window`](Self::window) still allocate when produced.
-    /// Use [`Window::iter`](crate::operators::Window::iter) to inspect the current window
-    /// without allocating a snapshot.
-    fn try_window(self, window_size: usize) -> Result<Window<Self>>
-    where
-        Self::Output: Clone,
-    {
+    /// The returned snapshots still allocate when produced and require the inner output to
+    /// implement `Clone`. Use [`Window::iter`](crate::operators::Window::iter) to inspect the
+    /// current window without cloning its outputs or allocating a snapshot.
+    fn try_window(self, window_size: usize) -> Result<Window<Self>> {
         Window::try_new(self, window_size)
     }
 }

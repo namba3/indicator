@@ -1,5 +1,19 @@
 use indicator::{Current, IndicatorExt, Next, Price, Reset, Volume, Vwap, Vwma};
 
+struct NonCloneOutput(usize);
+
+struct NonCloneIndicator;
+
+impl indicator::Indicator for NonCloneIndicator {
+    type Output = NonCloneOutput;
+}
+
+impl Next<usize> for NonCloneIndicator {
+    fn next(&mut self, input: usize) -> Self::Output {
+        NonCloneOutput(input)
+    }
+}
+
 #[test]
 fn bollinger_bands_module_api_is_available() -> indicator::Result<()> {
     use indicator::bollinger_bands::{BollingerBands, BollingerBandsOutput};
@@ -133,6 +147,34 @@ fn window_iterator_exposes_exact_size_and_fused_guarantees() -> indicator::Resul
 
     window.reset();
     assert_eq!(window.iter().len(), 0);
+
+    Ok(())
+}
+
+#[test]
+fn window_can_borrow_non_clone_outputs() -> indicator::Result<()> {
+    let mut window = NonCloneIndicator.window(3);
+    window.advance(7);
+    assert_eq!(
+        window.iter().map(|value| value.0).collect::<Vec<_>>(),
+        [7, 7, 7]
+    );
+
+    window.advance(9);
+    assert_eq!(
+        window.iter().map(|value| value.0).collect::<Vec<_>>(),
+        [7, 7, 9]
+    );
+
+    let mut fallible_window = NonCloneIndicator.try_window(2)?;
+    fallible_window.advance(4);
+    assert_eq!(
+        fallible_window
+            .iter()
+            .map(|value| value.0)
+            .collect::<Vec<_>>(),
+        [4, 4]
+    );
 
     Ok(())
 }

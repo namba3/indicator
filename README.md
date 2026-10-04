@@ -4,6 +4,21 @@
 
 テクニカル分析で使うインジケーターを実装した Rust ライブラリです。
 
+## 金融商品におけるテクニカル分析
+
+テクニカル分析は、株式・為替・先物などの金融商品の価格や出来高の時系列を調べ、市場のトレンドや勢い、変動の大きさを把握する手法です。インジケーターは、こうした時系列を特定の計算方法と期間で要約します。
+
+- **トレンド**: SMA、EMA、RMA、Aroon
+- **モメンタム**: RSI、MACD、Stochastics
+- **価格変動・レンジ**: Bollinger Bands、Standard Deviation、Max、Min
+- **出来高**: VWAP、VWMA
+
+同じインジケーターでも、入力する価格・出来高、観測間隔、計算期間によって値は変わります。指標の値や過去のパターンだけで将来の値動きが決まるわけではなく、シグナルが外れることもあります。頻繁な売買を伴う場合は、手数料などの取引コストや、売買タイミングを逃すリスクも考慮してください。
+
+このライブラリは指標の値を計算します。市場データの取得、売買シグナルの評価、投資判断や注文は行いません。投資には損失のリスクがあります。
+
+参考: [CFA Institute Research Foundation: Technical Analysis: Modern Perspectives](https://rpc.cfainstitute.org/research/foundation/2017/technical-analysis)、[FINRA: What Is Market Timing?](https://www.finra.org/investors/insights/market-timing)、[Investor.gov: What Is Risk?](https://www.investor.gov/introduction-investing/investing-basics/what-risk)
+
 ## 使用例
 
 ```rust

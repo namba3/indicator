@@ -4,6 +4,21 @@ English | [日本語](README.md)
 
 A Rust library that implements indicators for technical analysis.
 
+## Technical Analysis for Financial Instruments
+
+Technical analysis examines time series of prices and trading volume for financial instruments such as equities, foreign exchange, and futures to describe trends, momentum, and volatility. Indicators summarize those series using a particular calculation and lookback period.
+
+- **Trend**: SMA, EMA, RMA, Aroon
+- **Momentum**: RSI, MACD, Stochastics
+- **Price range and volatility**: Bollinger Bands, Standard Deviation, Max, Min
+- **Volume**: VWAP, VWMA
+
+Indicator values depend on the input prices and volumes, sampling interval, and calculation period. An indicator or historical pattern does not determine future price movements, and signals can be wrong. When a strategy involves frequent trading, account for transaction costs such as fees and the risk of missing market moves.
+
+This library calculates indicator values. It does not provide market data, evaluate trading signals, make investment decisions, or place orders. Investing involves the risk of loss.
+
+Further reading: [CFA Institute Research Foundation: Technical Analysis: Modern Perspectives](https://rpc.cfainstitute.org/research/foundation/2017/technical-analysis), [FINRA: What Is Market Timing?](https://www.finra.org/investors/insights/market-timing), [Investor.gov: What Is Risk?](https://www.investor.gov/introduction-investing/investing-basics/what-risk)
+
 ## Example
 
 ```rust

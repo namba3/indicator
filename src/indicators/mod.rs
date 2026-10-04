@@ -1,10 +1,6 @@
 pub mod aroon_indicator;
 pub mod aroon_oscillator;
-pub mod bolinger_bands;
-/// Correctly spelled module path for Bollinger Bands.
-pub mod bollinger_bands {
-    pub use super::bolinger_bands::{BollingerBands, BollingerBandsOutput};
-}
+pub mod bollinger_bands;
 pub mod ema;
 pub mod macd;
 pub mod max;
@@ -21,7 +17,7 @@ pub mod vwma;
 
 pub use aroon_indicator::*;
 pub use aroon_oscillator::*;
-pub use bolinger_bands::*;
+pub use bollinger_bands::*;
 pub use ema::*;
 pub use macd::*;
 pub use max::*;

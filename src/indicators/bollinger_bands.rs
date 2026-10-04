@@ -3,21 +3,21 @@ use crate::{
     StandardDeviation,
 };
 
-/// Bolinger Bands
+/// Bollinger Bands
 #[derive(Debug, Clone)]
-pub struct BolingerBands {
+pub struct BollingerBands {
     sd: StandardDeviation,
     multiplier: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct BolingerBandsOutput {
+pub struct BollingerBandsOutput {
     pub average: f64,
     pub upper_bound: f64,
     pub lower_bound: f64,
 }
 
-impl BolingerBands {
+impl BollingerBands {
     /// Creates Bollinger Bands with a finite, non-negative standard deviation multiplier.
     pub fn new(period: usize, multiplier: f64) -> Result<Self> {
         let sd = StandardDeviation::new(period)?;
@@ -41,10 +41,10 @@ impl BolingerBands {
     }
 }
 
-impl Indicator for BolingerBands {
-    type Output = BolingerBandsOutput;
+impl Indicator for BollingerBands {
+    type Output = BollingerBandsOutput;
 }
-impl Current for BolingerBands {
+impl Current for BollingerBands {
     fn current(&self) -> Option<Self::Output> {
         if let Some(x) = self.sd.current() {
             Self::Output {
@@ -58,7 +58,7 @@ impl Current for BolingerBands {
         }
     }
 }
-impl BolingerBands {
+impl BollingerBands {
     fn bound(mean: f64, sd: f64, multiplier: f64, upper: bool) -> f64 {
         let deviation = sd * multiplier;
         let bound = if upper {
@@ -85,27 +85,21 @@ impl BolingerBands {
         scaled_bound * scale
     }
 }
-impl Next<f64> for BolingerBands {
+impl Next<f64> for BollingerBands {
     fn next(&mut self, input: f64) -> Self::Output {
         self._next(input)
     }
 }
-impl<Input: Price> Next<&Input> for BolingerBands {
+impl<Input: Price> Next<&Input> for BollingerBands {
     fn next(&mut self, input: &Input) -> Self::Output {
         self._next(input.price())
     }
 }
-impl Reset for BolingerBands {
+impl Reset for BollingerBands {
     fn reset(&mut self) {
         self.sd.reset();
     }
 }
-
-/// Correctly spelled name for [`BolingerBands`].
-pub type BollingerBands = BolingerBands;
-
-/// Correctly spelled output type for [`BollingerBands`].
-pub type BollingerBandsOutput = BolingerBandsOutput;
 
 #[cfg(test)]
 mod tests {
@@ -121,7 +115,7 @@ mod tests {
         }
     }
 
-    impl Round for BolingerBandsOutput {
+    impl Round for BollingerBandsOutput {
         fn round(self) -> Self {
             Self {
                 average: Round::round(self.average),
@@ -140,7 +134,7 @@ mod tests {
             .collect::<Vec<_>>()
             .into_boxed_slice()
     });
-    static OUTPUTS: SyncLazy<Box<[BolingerBandsOutput]>> = SyncLazy::new(|| {
+    static OUTPUTS: SyncLazy<Box<[BollingerBandsOutput]>> = SyncLazy::new(|| {
         [
             (100.0, 100.0, 100.0),
             (100.8, 104.0, 97.6),
@@ -148,7 +142,7 @@ mod tests {
             (101.6, 104.59332591, 98.60667409),
         ]
         .into_iter()
-        .map(|(average, upper_bound, lower_bound)| BolingerBandsOutput {
+        .map(|(average, upper_bound, lower_bound)| BollingerBandsOutput {
             average,
             upper_bound,
             lower_bound,
@@ -158,12 +152,12 @@ mod tests {
     });
 
     test_indicator! {
-        new: BolingerBands::new(PERIOD, MULTIPLIER),
+        new: BollingerBands::new(PERIOD, MULTIPLIER),
         inputs: INPUTS.iter().map(|x| x.price()),
         outputs: OUTPUTS.iter().copied(),
         additional_tests: {
             new_invalid_parameter: {
-                new: BolingerBands::new(10, -1.0),
+                new: BollingerBands::new(10, -1.0),
             },
             current: {
                 inputs: RANDOM_DATA.iter().map(|x| x.price()),
@@ -180,7 +174,7 @@ mod tests {
 
     #[test]
     fn finite_band_bound_survives_intermediate_product_overflow() -> crate::Result<()> {
-        let mut bands = BolingerBands::new(2, 3.0)?;
+        let mut bands = BollingerBands::new(2, 3.0)?;
         let _ = bands.next(-f64::MAX);
 
         let output = bands.next(0.0);

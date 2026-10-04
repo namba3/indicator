@@ -1,7 +1,7 @@
 use indicator::{Current, IndicatorExt, Next, Price, Reset, Volume, Vwap, Vwma};
 
 #[test]
-fn correctly_spelled_bollinger_bands_api_is_available() -> indicator::Result<()> {
+fn bollinger_bands_module_api_is_available() -> indicator::Result<()> {
     use indicator::bollinger_bands::{BollingerBands, BollingerBandsOutput};
 
     let mut bands = BollingerBands::new(2, 2.0)?;

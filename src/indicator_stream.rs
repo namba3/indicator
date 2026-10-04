@@ -39,7 +39,7 @@ where
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut core::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    ) -> Poll<Option<Self::Item>> {
         // SAFETY: `input_stream` is `Unpin`, and this implementation does not
         // move the pinned `IndicatorStream` value or project a pin to `inner`.
         let this = unsafe { self.get_unchecked_mut() };

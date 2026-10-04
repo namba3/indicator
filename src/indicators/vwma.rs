@@ -1,6 +1,6 @@
 use crate::{
     Current, Indicator, InvalidPriceError, InvalidRangeError, InvalidVolumeError, Next, Parameter,
-    Price, Range, Reset, Result, Volume,
+    Price, Range, Reset, Result, Volume, try_deque_with_capacity,
 };
 use alloc::collections::VecDeque;
 
@@ -46,7 +46,7 @@ impl Vwma {
         } else {
             Ok(Self {
                 period,
-                ring: VecDeque::with_capacity(period),
+                ring: try_deque_with_capacity(period)?,
                 sum: None,
                 compensation: (0.0, 0.0),
                 volume_scale: 0.0,

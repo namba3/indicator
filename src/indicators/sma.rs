@@ -1,4 +1,7 @@
-use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
+use crate::{
+    Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
+    try_deque_with_capacity,
+};
 use alloc::collections::VecDeque;
 
 /// Simple Moving Average
@@ -19,7 +22,7 @@ impl Sma {
         } else {
             Ok(Self {
                 period,
-                ring: VecDeque::with_capacity(period),
+                ring: try_deque_with_capacity(period)?,
                 sum: None,
             })
         }

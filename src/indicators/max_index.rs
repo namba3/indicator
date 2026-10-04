@@ -1,4 +1,7 @@
-use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
+use crate::{
+    Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
+    try_deque_with_capacity,
+};
 use alloc::collections::VecDeque;
 
 /// Maximum Index (number of samples elapsed since the highest value)
@@ -21,10 +24,12 @@ impl MaxIndex {
             }
             .into())
         } else {
+            let ring = try_deque_with_capacity(period)?;
+            let candidates = try_deque_with_capacity(period)?;
             Ok(Self {
                 period,
-                ring: VecDeque::with_capacity(period),
-                candidates: VecDeque::with_capacity(period),
+                ring,
+                candidates,
                 position: 0,
                 nan_count: 0,
                 fast_path: true,

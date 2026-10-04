@@ -74,6 +74,44 @@ fn vwma_stays_stable_with_extreme_prices_and_volumes() -> indicator::Result<()> 
     Ok(())
 }
 
+#[test]
+fn rolling_indicators_report_unallocatable_periods() {
+    use indicator::{Max, MaxIndex, Min, MinIndex, Sma, StandardDeviation};
+
+    assert!(matches!(
+        Sma::new(usize::MAX),
+        Err(indicator::Error::AllocationFailed)
+    ));
+    assert!(matches!(
+        StandardDeviation::new(usize::MAX),
+        Err(indicator::Error::AllocationFailed)
+    ));
+    assert!(matches!(
+        Max::new(usize::MAX),
+        Err(indicator::Error::AllocationFailed)
+    ));
+    assert!(matches!(
+        Min::new(usize::MAX),
+        Err(indicator::Error::AllocationFailed)
+    ));
+    assert!(matches!(
+        MaxIndex::new(usize::MAX),
+        Err(indicator::Error::AllocationFailed)
+    ));
+    assert!(matches!(
+        MinIndex::new(usize::MAX),
+        Err(indicator::Error::AllocationFailed)
+    ));
+    assert!(matches!(
+        Vwma::new(usize::MAX),
+        Err(indicator::Error::AllocationFailed)
+    ));
+    assert!(matches!(
+        indicator::AroonIndicator::new(usize::MAX - 1),
+        Err(indicator::Error::AllocationFailed)
+    ));
+}
+
 #[derive(Clone)]
 struct Trade {
     price: f64,

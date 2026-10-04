@@ -129,6 +129,7 @@ pub enum Error {
     InvalidRelation(InvalidBinaryRelationError<usize>),
     InvalidPrice(InvalidPriceError),
     InvalidVolume(InvalidVolumeError),
+    AllocationFailed,
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
@@ -139,6 +140,7 @@ impl Display for Error {
             InvalidRelation(e) => f.write_fmt(format_args!("invalid relation: {e}")),
             InvalidPrice(e) => f.write_fmt(format_args!("invalid price: {e}")),
             InvalidVolume(e) => f.write_fmt(format_args!("invalid volume: {e}")),
+            AllocationFailed => f.write_str("allocation failed"),
         }
     }
 }
@@ -251,5 +253,6 @@ mod tests {
             price.to_string(),
             "invalid price: expected price to be finite, but actually NaN."
         );
+        assert_eq!(Error::AllocationFailed.to_string(), "allocation failed");
     }
 }

@@ -16,6 +16,16 @@
 #![allow(dead_code)]
 extern crate alloc;
 
+pub(crate) fn try_deque_with_capacity<T>(
+    capacity: usize,
+) -> Result<alloc::collections::VecDeque<T>> {
+    let mut deque = alloc::collections::VecDeque::new();
+    deque
+        .try_reserve(capacity)
+        .map_err(|_| Error::AllocationFailed)?;
+    Ok(deque)
+}
+
 #[cfg(test)]
 #[macro_use]
 mod test_helper;

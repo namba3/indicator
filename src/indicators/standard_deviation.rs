@@ -1,4 +1,7 @@
-use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
+use crate::{
+    Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
+    try_deque_with_capacity,
+};
 use alloc::collections::VecDeque;
 
 const RECOMPUTE_SSE_RATIO: f64 = 1.0e-8;
@@ -28,7 +31,7 @@ impl StandardDeviation {
         } else {
             Ok(Self {
                 period,
-                ring: VecDeque::with_capacity(period),
+                ring: try_deque_with_capacity(period)?,
                 mean_sse: None,
             })
         }

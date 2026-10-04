@@ -1,32 +1,20 @@
-use alloc::{boxed::Box, collections::VecDeque, vec};
+use alloc::{collections::VecDeque, vec::Vec};
 
 use crate::{Current, Indicator, Next, Reset};
 
 /// Create a new indicator that outputs the past N output values ​​of the inner indicator.
-pub struct Window<'a, Inner: Indicator>
-where
-    Self: 'a,
-{
+pub struct Window<Inner: Indicator> {
     inner: Inner,
     window_size: usize,
     ring: VecDeque<Inner::Output>,
-    buf: Box<[&'a Inner::Output]>,
     is_first: bool,
 }
-impl<'a, Inner: Indicator> Window<'a, Inner>
-where
-    Self: 'a,
-{
+impl<Inner: Indicator> Window<Inner> {
     pub(crate) fn new(inner: Inner, window_size: usize) -> Self {
-        let buf = unsafe {
-            let a = core::mem::MaybeUninit::<&'a Inner::Output>::zeroed();
-            vec![a.assume_init(); window_size].into_boxed_slice()
-        };
         Self {
             inner,
             window_size,
             ring: VecDeque::with_capacity(window_size),
-            buf,
             is_first: true,
         }
     }
@@ -36,43 +24,30 @@ where
         self.inner
     }
 
-    fn update_window(&mut self) {
-        let buf = self.buf.as_mut();
+    fn window(&self) -> Vec<Inner::Output>
+    where
+        Inner::Output: Clone,
+    {
+        let missing = self.window_size - self.ring.len();
+        let mut window = Vec::with_capacity(self.window_size);
 
-        let n = self.window_size - self.ring.len();
-        let mut iter = self.ring.iter();
-
-        unsafe {
-            if n == 0 {
-                for (i, r) in iter.enumerate() {
-                    buf[i] = &*(r as *const _);
-                }
-            } else {
-                let a = iter.next().unwrap();
-                for i in 0..=n {
-                    buf[i] = &*(a as *const _);
-                }
-                for (i, r) in iter.enumerate() {
-                    buf[i + n + 1] = &*(r as *const _);
-                }
+        if let Some(first) = self.ring.front() {
+            for _ in 0..missing {
+                window.push(first.clone());
             }
         }
-    }
 
-    fn window(&self) -> <Self as Indicator>::Output {
-        unsafe { &*(&self.buf[..] as *const _) }
+        window.extend(self.ring.iter().cloned());
+        window
     }
 }
-impl<'a, Inner: Indicator> Indicator for Window<'a, Inner>
-where
-    Self: 'a,
-{
-    type Output = &'a [&'a Inner::Output];
+impl<Inner: Indicator> Indicator for Window<Inner> {
+    type Output = Vec<Inner::Output>;
 }
-impl<'a, Inner: Indicator, N> Next<N> for Window<'a, Inner>
+impl<Inner: Indicator, N> Next<N> for Window<Inner>
 where
-    Self: 'a,
     Inner: Next<N>,
+    Inner::Output: Clone,
 {
     fn next(&mut self, input: N) -> Self::Output {
         let value = self.inner.next(input);
@@ -81,17 +56,16 @@ where
                 let _ = self.ring.pop_front();
             }
             self.ring.push_back(value);
-            self.update_window();
         }
 
         self.is_first = false;
         self.window()
     }
 }
-impl<'a, Inner: Indicator> Current for Window<'a, Inner>
+impl<Inner: Indicator> Current for Window<Inner>
 where
-    Self: 'a,
     Inner: Current,
+    Inner::Output: Clone,
 {
     fn current(&self) -> Option<Self::Output> {
         if self.is_first {
@@ -101,9 +75,8 @@ where
         }
     }
 }
-impl<'a, Inner: Indicator> Reset for Window<'a, Inner>
+impl<Inner: Indicator> Reset for Window<Inner>
 where
-    Self: 'a,
     Inner: Reset,
 {
     fn reset(&mut self) {
@@ -136,14 +109,13 @@ mod tests {
             .collect::<Vec<_>>()
             .into_boxed_slice()
     });
-    static OUTPUTS: &[f64] = &[100.0, 100.2, 100.4, 100.8, 101.2, 101.6];
-    static OUTPUTS_WINDOWS: &[&[&f64]] = &[
-        &[&OUTPUTS[0], &OUTPUTS[0], &OUTPUTS[0]],
-        &[&OUTPUTS[0], &OUTPUTS[0], &OUTPUTS[1]],
-        &[&OUTPUTS[0], &OUTPUTS[1], &OUTPUTS[2]],
-        &[&OUTPUTS[1], &OUTPUTS[2], &OUTPUTS[3]],
-        &[&OUTPUTS[2], &OUTPUTS[3], &OUTPUTS[4]],
-        &[&OUTPUTS[3], &OUTPUTS[4], &OUTPUTS[5]],
+    static OUTPUTS_WINDOWS: &[[f64; WINDOW_SIZE]] = &[
+        [100.0, 100.0, 100.0],
+        [100.0, 100.0, 100.2],
+        [100.0, 100.2, 100.4],
+        [100.2, 100.4, 100.8],
+        [100.4, 100.8, 101.2],
+        [100.8, 101.2, 101.6],
     ];
 
     #[test]
@@ -151,12 +123,57 @@ mod tests {
         let sma = Sma::new(PERIOD)?;
         let mut window = Window::new(sma, WINDOW_SIZE);
 
-        assert_eq!(window.next(&INPUTS[0]), OUTPUTS_WINDOWS[0]);
-        assert_eq!(window.next(&INPUTS[1]), OUTPUTS_WINDOWS[1]);
-        assert_eq!(window.next(&INPUTS[2]), OUTPUTS_WINDOWS[2]);
-        assert_eq!(window.next(&INPUTS[3]), OUTPUTS_WINDOWS[3]);
-        assert_eq!(window.next(&INPUTS[4]), OUTPUTS_WINDOWS[4]);
-        assert_eq!(window.next(&INPUTS[5]), OUTPUTS_WINDOWS[5]);
+        assert_eq!(window.next(&INPUTS[0]).as_slice(), &OUTPUTS_WINDOWS[0]);
+        assert_eq!(window.next(&INPUTS[1]).as_slice(), &OUTPUTS_WINDOWS[1]);
+        assert_eq!(window.next(&INPUTS[2]).as_slice(), &OUTPUTS_WINDOWS[2]);
+        assert_eq!(window.next(&INPUTS[3]).as_slice(), &OUTPUTS_WINDOWS[3]);
+        assert_eq!(window.next(&INPUTS[4]).as_slice(), &OUTPUTS_WINDOWS[4]);
+        assert_eq!(window.next(&INPUTS[5]).as_slice(), &OUTPUTS_WINDOWS[5]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn next_results_are_independent_snapshots() -> crate::Result<()> {
+        let sma = Sma::new(1)?;
+        let mut window = Window::new(sma, 2);
+
+        let first = window.next(1.0);
+        let second = window.next(2.0);
+
+        assert_eq!(first, [1.0, 1.0]);
+        assert_eq!(second, [1.0, 2.0]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn current_returns_an_independent_snapshot() -> crate::Result<()> {
+        let sma = Sma::new(1)?;
+        let mut window = Window::new(sma, 2);
+
+        assert_eq!(window.current(), None);
+        window.next(1.0);
+        let first_current = window.current().unwrap();
+        window.next(2.0);
+
+        assert_eq!(first_current, [1.0, 1.0]);
+        assert_eq!(window.current(), Some(vec![1.0, 2.0]));
+
+        window.reset();
+        assert_eq!(window.current(), None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn zero_sized_window_returns_empty_snapshots() -> crate::Result<()> {
+        let sma = Sma::new(1)?;
+        let mut window = Window::new(sma, 0);
+
+        assert_eq!(window.next(1.0), Vec::<f64>::new());
+        assert_eq!(window.current(), Some(Vec::<f64>::new()));
+        assert_eq!(window.next(2.0), Vec::<f64>::new());
 
         Ok(())
     }
@@ -168,7 +185,7 @@ mod tests {
 
         for input in RANDOM_DATA.iter() {
             let correct = window.next(input);
-            assert_eq!(window.current(), Some(correct));
+            assert_eq!(window.current(), Some(correct.clone()));
         }
 
         Ok(())
@@ -183,15 +200,14 @@ mod tests {
 
         for input in RANDOM_DATA.iter() {
             let correct = window.next(input);
-            v.push(correct.iter().map(|x| **x).collect());
+            v.push(correct);
         }
 
         window.reset();
 
         for (i, input) in RANDOM_DATA.iter().enumerate() {
             let value = window.next(input);
-            let correct = v[i].iter().collect::<Vec<&f64>>();
-            assert_eq!(value, &correct[..]);
+            assert_eq!(value, v[i]);
         }
 
         Ok(())

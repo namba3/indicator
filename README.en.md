@@ -100,12 +100,12 @@ Collect the most recent N outputs from an inner indicator.
 let sma = Sma::new(5).unwrap();
 let mut sma_window = sma.window(3);
 
-assert_eq!(sma_window.next(100.0), &[&100.0, &100.0, &100.0]);
-assert_eq!(sma_window.next(101.0), &[&100.0, &100.0, &100.2]);
-assert_eq!(sma_window.next(101.0), &[&100.0, &100.2, &100.4]);
-assert_eq!(sma_window.next(102.0), &[&100.2, &100.4, &100.8]);
-assert_eq!(sma_window.next(102.0), &[&100.4, &100.8, &101.2]);
-assert_eq!(sma_window.next(102.0), &[&100.8, &101.2, &101.6]);
+assert_eq!(sma_window.next(100.0), vec![100.0, 100.0, 100.0]);
+assert_eq!(sma_window.next(101.0), vec![100.0, 100.0, 100.2]);
+assert_eq!(sma_window.next(101.0), vec![100.0, 100.2, 100.4]);
+assert_eq!(sma_window.next(102.0), vec![100.2, 100.4, 100.8]);
+assert_eq!(sma_window.next(102.0), vec![100.4, 100.8, 101.2]);
+assert_eq!(sma_window.next(102.0), vec![100.8, 101.2, 101.6]);
 ```
 
 ### Convert an indicator to an iterator

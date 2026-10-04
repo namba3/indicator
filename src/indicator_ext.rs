@@ -206,7 +206,7 @@ pub trait IndicatorExt: Indicator + Sized {
         crate::indicator_stream::IndicatorStream::new(self, input_stream)
     }
 
-    /// Create a new indicator that outputs the past N output values ​​of the inner indicator.
+    /// Create an indicator that returns an owned snapshot of the most recent N outputs.
     ///
     /// # Example
     ///
@@ -217,18 +217,19 @@ pub trait IndicatorExt: Indicator + Sized {
     ///
     /// let mut sma_window = sma.window(3);
     ///
-    /// assert_eq!(sma_window.next(100.0), &[&100.0, &100.0, &100.0]);
-    /// assert_eq!(sma_window.next(101.0), &[&100.0, &100.0, &100.2]);
-    /// assert_eq!(sma_window.next(101.0), &[&100.0, &100.2, &100.4]);
-    /// assert_eq!(sma_window.next(102.0), &[&100.2, &100.4, &100.8]);
-    /// assert_eq!(sma_window.next(102.0), &[&100.4, &100.8, &101.2]);
-    /// assert_eq!(sma_window.next(102.0), &[&100.8, &101.2, &101.6]);
+    /// assert_eq!(sma_window.next(100.0), vec![100.0, 100.0, 100.0]);
+    /// assert_eq!(sma_window.next(101.0), vec![100.0, 100.0, 100.2]);
+    /// assert_eq!(sma_window.next(101.0), vec![100.0, 100.2, 100.4]);
+    /// assert_eq!(sma_window.next(102.0), vec![100.2, 100.4, 100.8]);
+    /// assert_eq!(sma_window.next(102.0), vec![100.4, 100.8, 101.2]);
+    /// assert_eq!(sma_window.next(102.0), vec![100.8, 101.2, 101.6]);
     ///
     /// # }
     /// ```
-    fn window<'a>(self, window_size: usize) -> Window<'a, Self>
+    /// Each output is an owned snapshot, so the inner output must implement `Clone`.
+    fn window(self, window_size: usize) -> Window<Self>
     where
-        Self: 'a,
+        Self::Output: Clone,
     {
         Window::new(self, window_size)
     }

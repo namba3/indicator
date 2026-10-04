@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Rust ${{ matrix.rust }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable, 1.85.0]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install "${{ matrix.rust }}" --profile minimal --component rustfmt
+
+      - name: Check formatting
+        run: cargo +${{ matrix.rust }} fmt --check
+
+      - name: Run default tests
+        run: cargo +${{ matrix.rust }} test --locked
+
+      - name: Run all-feature tests
+        run: cargo +${{ matrix.rust }} test --locked --all-features
+
+      - name: Check no_std build
+        run: cargo +${{ matrix.rust }} check --locked --no-default-features
+
+      - name: Compile benchmark
+        run: cargo +${{ matrix.rust }} bench --locked --bench indicators --no-run

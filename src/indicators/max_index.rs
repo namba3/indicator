@@ -1,7 +1,7 @@
 use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
 use alloc::collections::VecDeque;
 
-/// Maximum Index (Number of days elapsed from the date of the highest price)
+/// Maximum Index (number of samples elapsed since the highest value)
 #[derive(Debug, Clone)]
 pub struct MaxIndex {
     period: usize,

@@ -1,7 +1,7 @@
 use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
 use alloc::collections::VecDeque;
 
-/// Minimum Index (Number of days elapsed from the date of the lowest price)
+/// Minimum Index (number of samples elapsed since the lowest value)
 #[derive(Debug, Clone)]
 pub struct MinIndex {
     period: usize,

@@ -44,8 +44,8 @@ fn main() {
 - EMA: Exponential Moving Average
 - MACD: Moving Average Convergence Divergence
 - Max
-- Max Index（最高値の日からの経過日数）
-- Min Index（最安値の日からの経過日数）
+- Max Index（最高値からの経過サンプル数）
+- Min Index（最安値からの経過サンプル数）
 - Min
 - RMA: Running Moving Average（Modified Moving Average とも呼ばれます）
 - RSI: Relative Strength Index

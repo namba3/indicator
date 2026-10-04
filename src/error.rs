@@ -56,6 +56,26 @@ impl<T: Display> Display for InvalidRangeError<T> {
 impl<T: Debug + Display> std::error::Error for InvalidRangeError<T> {}
 
 #[derive(Debug, Clone)]
+pub struct InvalidPriceError {
+    pub(crate) price: f64,
+}
+impl InvalidPriceError {
+    pub(crate) fn new(price: f64) -> Self {
+        Self { price }
+    }
+}
+impl Display for InvalidPriceError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!(
+            "expected price to be finite, but actually {}.",
+            self.price
+        ))
+    }
+}
+#[cfg(feature = "std")]
+impl std::error::Error for InvalidPriceError {}
+
+#[derive(Debug, Clone)]
 pub struct InvalidVolumeError {
     pub(crate) volume: f64,
 }
@@ -107,6 +127,7 @@ pub enum Error {
     InvalidUintRange(InvalidRangeError<usize>),
     InvalidFloatRange(InvalidRangeError<f64>),
     InvalidRelation(InvalidBinaryRelationError<usize>),
+    InvalidPrice(InvalidPriceError),
     InvalidVolume(InvalidVolumeError),
 }
 impl Display for Error {
@@ -116,6 +137,7 @@ impl Display for Error {
             InvalidUintRange(e) => f.write_fmt(format_args!("invalid uint range: {e}")),
             InvalidFloatRange(e) => f.write_fmt(format_args!("invalid float range: {e}")),
             InvalidRelation(e) => f.write_fmt(format_args!("invalid relation: {e}")),
+            InvalidPrice(e) => f.write_fmt(format_args!("invalid price: {e}")),
             InvalidVolume(e) => f.write_fmt(format_args!("invalid volume: {e}")),
         }
     }
@@ -133,6 +155,11 @@ impl From<InvalidRangeError<f64>> for Error {
 impl From<InvalidBinaryRelationError<usize>> for Error {
     fn from(e: InvalidBinaryRelationError<usize>) -> Self {
         Self::InvalidRelation(e)
+    }
+}
+impl From<InvalidPriceError> for Error {
+    fn from(e: InvalidPriceError) -> Self {
+        Self::InvalidPrice(e)
     }
 }
 impl From<InvalidVolumeError> for Error {
@@ -202,6 +229,7 @@ mod tests {
             rhs: Parameter::new("long_period", 2),
         });
         let volume = Error::from(InvalidVolumeError::new(-1.0));
+        let price = Error::from(InvalidPriceError::new(f64::NAN));
 
         assert_eq!(
             uint_range.to_string(),
@@ -218,6 +246,10 @@ mod tests {
         assert_eq!(
             volume.to_string(),
             "invalid volume: expected volume to be finite and non-negative, but actually -1."
+        );
+        assert_eq!(
+            price.to_string(),
+            "invalid price: expected price to be finite, but actually NaN."
         );
     }
 }

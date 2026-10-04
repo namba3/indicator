@@ -80,12 +80,22 @@ fn invalid_volume_is_reported_without_mutating_indicators() -> indicator::Result
         .unwrap_err();
     assert!(matches!(error, indicator::Error::InvalidVolume(_)));
     assert_eq!(vwap.current(), Some(100.0));
+    assert!(matches!(
+        vwap.try_next((f64::NAN, 1.0)),
+        Err(indicator::Error::InvalidPrice(_))
+    ));
+    assert_eq!(vwap.current(), Some(100.0));
 
     let mut vwma = Vwma::new(2)?;
     assert_eq!(vwma.try_next((100.0, 1.0))?, Some(100.0));
     assert!(matches!(
         vwma.try_next((999.0, -1.0)),
         Err(indicator::Error::InvalidVolume(_))
+    ));
+    assert_eq!(vwma.current(), Some(100.0));
+    assert!(matches!(
+        vwma.try_next((f64::INFINITY, 1.0)),
+        Err(indicator::Error::InvalidPrice(_))
     ));
     assert_eq!(vwma.current(), Some(100.0));
 

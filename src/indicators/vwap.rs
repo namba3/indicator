@@ -1,4 +1,6 @@
-use crate::{Current, Indicator, InvalidVolumeError, Next, Price, Reset, Result, Volume};
+use crate::{
+    Current, Indicator, InvalidPriceError, InvalidVolumeError, Next, Price, Reset, Result, Volume,
+};
 
 /// Volume Weighted Average Price
 #[derive(Debug, Clone)]
@@ -20,7 +22,7 @@ impl Vwap {
     /// not affect the accumulated average. The [`Next`] implementations keep
     /// their `f64` output and return `NaN` while the result is undefined. Use
     /// [`try_next`](Self::try_next) or [`try_next_ref`](Self::try_next_ref) to
-    /// detect and reject negative or non-finite volumes.
+    /// detect and reject non-finite prices and negative or non-finite volumes.
     pub fn next_option<Input>(&mut self, input: Input) -> Option<f64>
     where
         Self: Next<Input>,
@@ -30,13 +32,13 @@ impl Vwap {
     }
 
     /// Update the indicator, returning an error without changing state for a
-    /// negative or non-finite volume.
+    /// non-finite price or negative or non-finite volume.
     pub fn try_next(&mut self, (price, volume): (f64, f64)) -> Result<Option<f64>> {
         self._try_next(price, volume)
     }
 
     /// Update from custom market data, returning an error without changing state
-    /// for a negative or non-finite volume.
+    /// for a non-finite price or negative or non-finite volume.
     pub fn try_next_ref<Input: Price + Volume>(&mut self, input: &Input) -> Result<Option<f64>> {
         self._try_next(input.price(), input.volume())
     }
@@ -47,6 +49,9 @@ impl Vwap {
     }
 
     fn _try_next(&mut self, price: f64, volume: f64) -> Result<Option<f64>> {
+        if !price.is_finite() {
+            return Err(InvalidPriceError::new(price).into());
+        }
         if !volume.is_finite() || volume < 0.0 {
             return Err(InvalidVolumeError::new(volume).into());
         }
@@ -186,8 +191,19 @@ mod tests {
             assert!(indicator.try_next((999.0, volume)).is_err());
             assert_eq!(indicator.current(), Some(105.0));
         }
+        for price in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(matches!(
+                indicator.try_next((price, 1.0)),
+                Err(crate::Error::InvalidPrice(_))
+            ));
+            assert_eq!(indicator.current(), Some(105.0));
+        }
+        assert_eq!(indicator.next((f64::NAN, 1.0)), 105.0);
         assert_eq!(indicator.next((999.0, -1.0)), 105.0);
         assert_eq!(indicator.try_next_ref(&TestItem(120.0, 1.0))?, Some(110.0));
+
+        let mut negative_price = Vwap::new();
+        assert_eq!(negative_price.try_next((-10.0, 1.0))?, Some(-10.0));
 
         let mut empty = Vwap::new();
         assert!(empty.try_next((100.0, f64::NAN)).is_err());

@@ -22,7 +22,7 @@ std = []
 stream = ["dep:futures-core"]
 
 [dependencies]
-futures-core = { version = "0.3.34", optional = true }
+futures-core = { version = "0.3.34", optional = true, default-features = false }
 libm = "0.2.16"
 
 [dev-dependencies]

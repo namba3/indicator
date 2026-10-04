@@ -42,6 +42,15 @@ jobs:
       - name: Check no_std stream build
         run: cargo +${{ matrix.rust }} check --locked --no-default-features --features stream
 
+      - name: Install embedded Rust target
+        run: rustup target add --toolchain "${{ matrix.rust }}" thumbv7em-none-eabihf
+
+      - name: Check embedded no_std build
+        run: cargo +${{ matrix.rust }} check --locked --target thumbv7em-none-eabihf --no-default-features
+
+      - name: Check embedded no_std stream build
+        run: cargo +${{ matrix.rust }} check --locked --target thumbv7em-none-eabihf --no-default-features --features stream
+
       - name: Run Clippy
         run: cargo +${{ matrix.rust }} clippy --locked --all-targets --all-features -- -D warnings
 

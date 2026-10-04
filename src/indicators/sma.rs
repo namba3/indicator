@@ -1,3 +1,4 @@
+use super::padded_window::values as padded_values;
 use crate::{
     Current, Indicator, Next, Price, Reset, Result, try_deque_with_capacity, validate_period,
 };
@@ -10,6 +11,9 @@ pub struct Sma {
     ring: VecDeque<f64>,
     sum: Option<f64>,
     mean: Option<f64>,
+    nan_count: usize,
+    positive_infinity_count: usize,
+    negative_infinity_count: usize,
 }
 impl Sma {
     pub fn new(period: usize) -> Result<Self> {
@@ -19,13 +23,46 @@ impl Sma {
             ring: try_deque_with_capacity(period)?,
             sum: None,
             mean: None,
+            nan_count: 0,
+            positive_infinity_count: 0,
+            negative_infinity_count: 0,
         })
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
-        if let Some(sum) = self.sum {
-            let old_value = self.push_window(input);
+        if self.sum.is_none() && self.mean.is_none() {
+            self.ring.push_back(input);
+            self.nan_count = usize::from(input.is_nan()) * self.period;
+            self.positive_infinity_count = usize::from(input == f64::INFINITY) * self.period;
+            self.negative_infinity_count = usize::from(input == f64::NEG_INFINITY) * self.period;
+            if let Some(mean) = self.non_finite_mean() {
+                self.mean = Some(mean);
+            } else {
+                let sum = input * self.period as f64;
+                if sum.is_finite() {
+                    self.sum = Some(sum);
+                } else {
+                    self.mean = Some(input);
+                }
+            }
+            return self.current().unwrap();
+        }
 
+        let old_value = self.push_window(input);
+        self.nan_count -= usize::from(old_value.is_nan());
+        self.nan_count += usize::from(input.is_nan());
+        self.positive_infinity_count -= usize::from(old_value == f64::INFINITY);
+        self.positive_infinity_count += usize::from(input == f64::INFINITY);
+        self.negative_infinity_count -= usize::from(old_value == f64::NEG_INFINITY);
+        self.negative_infinity_count += usize::from(input == f64::NEG_INFINITY);
+
+        if let Some(mean) = self.non_finite_mean() {
+            self.sum = None;
+            self.mean = Some(mean);
+        } else if self.mean.is_some_and(|mean| !mean.is_finite()) {
+            self.sum = None;
+            self.mean = Some(Self::recompute_finite_mean(&self.ring, self.period));
+        } else if let Some(sum) = self.sum {
             let sum_without_old = sum - old_value;
             let updated_sum = sum_without_old + input;
             if sum_without_old.is_finite() && updated_sum.is_finite() {
@@ -36,16 +73,7 @@ impl Sma {
                 self.mean = Some(Self::update_mean(mean, old_value, input, self.period));
             }
         } else if let Some(mean) = self.mean {
-            let old_value = self.push_window(input);
             self.mean = Some(Self::update_mean(mean, old_value, input, self.period));
-        } else {
-            self.ring.push_back(input);
-            let sum = input * self.period as f64;
-            if sum.is_finite() {
-                self.sum = Some(sum);
-            } else {
-                self.mean = Some(input);
-            }
         }
         self.current().unwrap()
     }
@@ -68,6 +96,31 @@ impl Sma {
         } else {
             mean + (input - old_value) / period as f64
         }
+    }
+
+    fn non_finite_mean(&self) -> Option<f64> {
+        if self.nan_count > 0
+            || (self.positive_infinity_count > 0 && self.negative_infinity_count > 0)
+        {
+            Some(f64::NAN)
+        } else if self.positive_infinity_count > 0 {
+            Some(f64::INFINITY)
+        } else if self.negative_infinity_count > 0 {
+            Some(f64::NEG_INFINITY)
+        } else {
+            None
+        }
+    }
+
+    fn recompute_finite_mean(ring: &VecDeque<f64>, period: usize) -> f64 {
+        let scale =
+            padded_values(ring, period).fold(0.0_f64, |scale, value| scale.max(value.abs()));
+        if scale == 0.0 {
+            return 0.0;
+        }
+
+        let scaled_sum = padded_values(ring, period).fold(0.0, |sum, value| sum + value / scale);
+        (scaled_sum / period as f64) * scale
     }
 }
 
@@ -95,6 +148,9 @@ impl Reset for Sma {
         self.ring.clear();
         self.sum = None;
         self.mean = None;
+        self.nan_count = 0;
+        self.positive_infinity_count = 0;
+        self.negative_infinity_count = 0;
     }
 }
 
@@ -200,6 +256,39 @@ mod tests {
         let mut period_one = Sma::new(1)?;
         assert_eq!(period_one.next(f64::MAX), f64::MAX);
         assert_eq!(period_one.next(-f64::MAX), -f64::MAX);
+
+        Ok(())
+    }
+
+    #[test]
+    fn non_finite_values_stop_affecting_the_average_after_leaving_the_window() -> crate::Result<()>
+    {
+        let mut nan_window = Sma::new(3)?;
+        assert!(nan_window.next(f64::NAN).is_nan());
+        assert!(nan_window.next(1.0).is_nan());
+        assert!(nan_window.next(2.0).is_nan());
+        assert_eq!(nan_window.next(3.0), 2.0);
+        assert_eq!(nan_window.current(), Some(2.0));
+        nan_window.reset();
+        assert_eq!(nan_window.next(4.0), 4.0);
+
+        let mut infinite_window = Sma::new(3)?;
+        assert_eq!(infinite_window.next(f64::INFINITY), f64::INFINITY);
+        assert_eq!(infinite_window.next(1.0), f64::INFINITY);
+        assert_eq!(infinite_window.next(2.0), f64::INFINITY);
+        assert_eq!(infinite_window.next(3.0), 2.0);
+
+        let mut extreme_finite_recovery = Sma::new(2)?;
+        assert_eq!(extreme_finite_recovery.next(f64::INFINITY), f64::INFINITY);
+        assert_eq!(extreme_finite_recovery.next(f64::MAX), f64::INFINITY);
+        assert_eq!(extreme_finite_recovery.next(-f64::MAX), 0.0);
+
+        let mut mixed_infinities = Sma::new(3)?;
+        assert_eq!(mixed_infinities.next(f64::INFINITY), f64::INFINITY);
+        assert!(mixed_infinities.next(f64::NEG_INFINITY).is_nan());
+        assert!(mixed_infinities.next(5.0).is_nan());
+        assert_eq!(mixed_infinities.next(7.0), f64::NEG_INFINITY);
+        assert_eq!(mixed_infinities.next(9.0), 7.0);
 
         Ok(())
     }

@@ -1,5 +1,6 @@
 use indicator::{
-    Current, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Sma, Vwap, Vwma,
+    Current, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Sma, StandardDeviation, Vwap,
+    Vwma,
 };
 
 fn deterministic_inputs() -> Vec<f64> {
@@ -222,6 +223,75 @@ fn vwap_matches_naive_recomputation_across_a_long_mixed_scale_sequence() -> indi
             }
         }
         assert_eq!(indicator.current(), actual);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn standard_deviation_matches_two_pass_reference_across_long_mixed_scales() -> indicator::Result<()>
+{
+    const PERIOD: usize = 49;
+    const INPUT_COUNT: usize = 20_000;
+    const CENTERS: [f64; 4] = [1.0e-6, 1.0e3, -1.0e6, 1.0e9];
+    const AMPLITUDES: [f64; 4] = [1.0e-9, 1.0e-2, 1.0, 100.0];
+
+    let mut state = 0x8ce4_195b_76a2_d30f_u64;
+    let inputs = (0..INPUT_COUNT)
+        .map(|index| {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
+            let regime = (index / 401) % CENTERS.len();
+            let offset = f64::from((state >> 32) as u32 % 2_001) / 1_000.0 - 1.0;
+            CENTERS[regime] + AMPLITUDES[regime] * offset
+        })
+        .collect::<Vec<_>>();
+
+    let mut indicator = StandardDeviation::new(PERIOD)?;
+    let mut window = Vec::with_capacity(PERIOD);
+    for (position, input) in inputs.into_iter().enumerate() {
+        if window.is_empty() {
+            window.resize(PERIOD, input);
+        } else {
+            window.remove(0);
+            window.push(input);
+        }
+
+        let origin = window[0];
+        let mean_offset = window.iter().map(|value| value - origin).sum::<f64>() / PERIOD as f64;
+        let expected_mean = origin + mean_offset;
+        let expected_sd = (window
+            .iter()
+            .map(|value| {
+                let delta = value - expected_mean;
+                delta * delta
+            })
+            .sum::<f64>()
+            / PERIOD as f64)
+            .sqrt();
+
+        let actual = indicator.next(input);
+        let window_scale = window.iter().map(|value| value.abs()).fold(0.0, f64::max);
+        let variation_scale = window
+            .iter()
+            .map(|value| (value - origin).abs())
+            .fold(0.0, f64::max);
+        let roundoff_floor = window_scale * f64::EPSILON * 4.0;
+        let mean_tolerance = roundoff_floor.max(variation_scale * 1.0e-8).max(1.0e-15);
+        let sd_tolerance = roundoff_floor.max(expected_sd * 1.0e-6).max(1.0e-15);
+
+        assert!(
+            (actual.mean - expected_mean).abs() <= mean_tolerance,
+            "position {position}: mean {}, expected {expected_mean}, tolerance {mean_tolerance}",
+            actual.mean
+        );
+        assert!(
+            actual.sd.is_finite() && (actual.sd - expected_sd).abs() <= sd_tolerance,
+            "position {position}: sd {}, expected {expected_sd}, tolerance {sd_tolerance}",
+            actual.sd
+        );
+        assert_eq!(indicator.current(), Some(actual));
     }
 
     Ok(())

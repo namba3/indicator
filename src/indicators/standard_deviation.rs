@@ -1,6 +1,8 @@
 use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
 use alloc::collections::VecDeque;
 
+const RECOMPUTE_SSE_RATIO: f64 = 1.0e-8;
+
 /// Standard Deviation
 #[derive(Debug, Clone)]
 pub struct StandardDeviation {
@@ -33,25 +35,50 @@ impl StandardDeviation {
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
-        match &mut self.mean_sse {
+        let should_recompute = match &mut self.mean_sse {
             Some((mean, sse)) => {
                 let old_input = self.ring.pop_front().unwrap();
                 self.ring.push_back(input);
 
                 let delta = input - old_input;
                 let old_mean = *mean;
+                let old_sse = *sse;
                 *mean += delta / self.period as f64;
                 let delta2 = input - *mean + old_input - old_mean;
                 *sse += delta * delta2;
+
+                // Rebuild after near-total cancellation to avoid retaining its rounding error.
+                *sse < 0.0 || (old_sse > 0.0 && *sse <= old_sse * RECOMPUTE_SSE_RATIO)
             }
             None => {
                 for _ in 0..self.period {
                     self.ring.push_back(input);
                 }
                 self.mean_sse = (input, 0.0).into();
+                false
             }
+        };
+        if should_recompute {
+            self.recompute_mean_sse();
         }
         self.current().unwrap()
+    }
+
+    fn recompute_mean_sse(&mut self) {
+        let origin = *self.ring.front().unwrap();
+        let mean_offset =
+            self.ring.iter().map(|value| value - origin).sum::<f64>() / self.period as f64;
+        let mean = origin + mean_offset;
+        let sse = self
+            .ring
+            .iter()
+            .map(|value| {
+                let delta = value - mean;
+                delta * delta
+            })
+            .sum();
+
+        self.mean_sse = Some((mean, sse));
     }
 }
 

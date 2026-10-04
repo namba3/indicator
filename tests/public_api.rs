@@ -1,5 +1,19 @@
 use indicator::{Current, IndicatorExt, Next, Price, Reset, Volume, Vwap, Vwma};
 
+#[test]
+fn correctly_spelled_bollinger_bands_api_is_available() -> indicator::Result<()> {
+    use indicator::bollinger_bands::{BollingerBands, BollingerBandsOutput};
+
+    let mut bands = BollingerBands::new(2, 2.0)?;
+    let output: BollingerBandsOutput = bands.next(100.0);
+
+    assert_eq!(output.average, 100.0);
+    assert_eq!(output.upper_bound, 100.0);
+    assert_eq!(output.lower_bound, 100.0);
+
+    Ok(())
+}
+
 #[derive(Clone)]
 struct Trade {
     price: f64,

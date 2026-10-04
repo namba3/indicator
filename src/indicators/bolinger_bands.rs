@@ -73,6 +73,12 @@ impl Reset for BolingerBands {
     }
 }
 
+/// Correctly spelled name for [`BolingerBands`].
+pub type BollingerBands = BolingerBands;
+
+/// Correctly spelled output type for [`BollingerBands`].
+pub type BollingerBandsOutput = BolingerBandsOutput;
+
 #[cfg(test)]
 mod tests {
     use super::*;

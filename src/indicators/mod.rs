@@ -1,6 +1,10 @@
 pub mod aroon_indicator;
 pub mod aroon_oscillator;
 pub mod bolinger_bands;
+/// Correctly spelled module path for Bollinger Bands.
+pub mod bollinger_bands {
+    pub use super::bolinger_bands::{BollingerBands, BollingerBandsOutput};
+}
 pub mod ema;
 pub mod macd;
 pub mod max;

@@ -40,7 +40,7 @@ fn main() {
 
 - Aroon Indicator
 - Aroon Oscillator
-- Bollinger Bands
+- Bollinger Bands（`BollingerBands`。従来名の `BolingerBands` も引き続き利用できます）
 - EMA: Exponential Moving Average
 - MACD: Moving Average Convergence Divergence
 - Max

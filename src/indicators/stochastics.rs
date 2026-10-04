@@ -1,4 +1,7 @@
-use crate::{Current, Indicator, Max, Min, Next, Price, Reset, Result, Sma};
+use crate::{
+    Current, Indicator, InvalidRangeError, Max, Min, Next, Parameter, Price, Range, Reset, Result,
+    Sma,
+};
 
 /// Stochastics
 ///
@@ -19,11 +22,19 @@ impl Stochastics {
 
     /// Creates Stochastics with lookback and smoothing periods.
     pub fn new(n_period: usize, m_period: usize, x_period: usize) -> Result<Self> {
-        let min = Min::new(n_period)?;
-        let max = Max::new(n_period)?;
+        if n_period < 1 {
+            return Err(InvalidRangeError {
+                param: Parameter::new("period", n_period),
+                range: Range::LowerBounded { min: 1 },
+            }
+            .into());
+        }
+
         let d_numerator = Sma::new(m_period)?;
         let d_denominator = Sma::new(m_period)?;
         let slow_d = Sma::new(x_period)?;
+        let min = Min::new(n_period)?;
+        let max = Max::new(n_period)?;
         Ok(Self {
             min,
             max,
@@ -220,6 +231,18 @@ mod tests {
     #[test]
     fn default() {
         let _: Stochastics = Default::default();
+    }
+
+    #[test]
+    fn validates_smoothing_periods_before_allocating_large_lookback_buffers() {
+        assert!(matches!(
+            Stochastics::new(usize::MAX, 0, 1),
+            Err(crate::Error::InvalidUintRange(_))
+        ));
+        assert!(matches!(
+            Stochastics::new(usize::MAX, 1, 0),
+            Err(crate::Error::InvalidUintRange(_))
+        ));
     }
 
     #[test]

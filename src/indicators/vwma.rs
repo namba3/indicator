@@ -136,4 +136,15 @@ mod tests {
             },
         }
     }
+
+    #[test]
+    fn period_one_returns_each_price() -> crate::Result<()> {
+        let mut indicator = Vwma::new(1)?;
+
+        for (price, volume) in [(3.5, 1.0), (-2.0, 4.0), (9.25, 2.0)] {
+            assert_eq!(indicator.next((price, volume)), price);
+        }
+
+        Ok(())
+    }
 }

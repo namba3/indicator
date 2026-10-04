@@ -126,4 +126,29 @@ mod tests {
             },
         }
     }
+
+    #[test]
+    fn rolling_index_tracks_latest_maximum_through_ties_and_expiry() -> crate::Result<()> {
+        const PERIOD: usize = 4;
+        let inputs = [3.0, 5.0, 5.0, 2.0, 1.0, 5.0, 4.0, 5.0, 1.0, 0.0, 0.0, 2.0];
+        let mut indicator = MaxIndex::new(PERIOD)?;
+        let mut window = vec![inputs[0]; PERIOD];
+
+        for (position, input) in inputs.into_iter().enumerate() {
+            if position > 0 {
+                window.remove(0);
+                window.push(input);
+            }
+
+            let maximum = window.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let expected = window
+                .iter()
+                .rev()
+                .position(|value| *value == maximum)
+                .unwrap();
+            assert_eq!(indicator.next(input), expected);
+        }
+
+        Ok(())
+    }
 }

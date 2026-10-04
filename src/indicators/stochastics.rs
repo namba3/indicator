@@ -206,4 +206,26 @@ mod tests {
     fn default() {
         let _: Stochastics = Default::default();
     }
+
+    #[test]
+    fn constant_input_uses_midpoint_fallback() -> crate::Result<()> {
+        let mut stochastics = Stochastics::new(3, 2, 2)?;
+
+        for index in 0..8 {
+            assert_eq!(
+                stochastics.next(42.0),
+                StochasticsOutput {
+                    k: 0.5,
+                    d: 0.5,
+                    slow_d: match index {
+                        0 => 0.5,
+                        1 => 0.25,
+                        _ => 0.5,
+                    },
+                }
+            );
+        }
+
+        Ok(())
+    }
 }

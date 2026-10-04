@@ -135,4 +135,10 @@ mod tests {
     fn default() {
         let _: Rsi = Default::default();
     }
+
+    #[test]
+    fn period_must_meet_rma_minimum() {
+        assert!(Rsi::new(1).is_err());
+        assert!(Rsi::new(2).is_ok());
+    }
 }

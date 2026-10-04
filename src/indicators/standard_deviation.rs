@@ -152,4 +152,21 @@ mod tests {
             },
         },
     }
+
+    #[test]
+    fn period_one_has_zero_standard_deviation() -> crate::Result<()> {
+        let mut indicator = StandardDeviation::new(1)?;
+
+        for input in [3.5, -2.0, 0.0, 9.25] {
+            assert_eq!(
+                indicator.next(input),
+                StandardDeviationOutput {
+                    mean: input,
+                    sd: 0.0,
+                }
+            );
+        }
+
+        Ok(())
+    }
 }

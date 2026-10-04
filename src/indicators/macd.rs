@@ -160,6 +160,8 @@ mod tests {
                     Macd::new(0, 2, 2),
                     Macd::new(2, 0, 2),
                     Macd::new(2, 3, 0),
+                    Macd::new(2, 2, 2),
+                    Macd::new(3, 2, 2),
                 ],
             },
             current: {

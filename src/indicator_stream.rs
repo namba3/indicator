@@ -27,13 +27,6 @@ where
     pub fn decompose(self) -> Inner {
         self.inner
     }
-
-    unsafe fn pin_input_stream(&self) -> Pin<&mut InputStream> {
-        Pin::new_unchecked(&mut *(&self.input_stream as *const _ as *mut _))
-    }
-    unsafe fn inner_mut(&self) -> &mut Inner {
-        &mut *(&self.inner as *const _ as *mut _)
-    }
 }
 
 impl<Inner, InputStream> Stream for IndicatorStream<Inner, InputStream>
@@ -47,13 +40,12 @@ where
         self: Pin<&mut Self>,
         cx: &mut core::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let input_stream = unsafe { self.pin_input_stream() };
+        // SAFETY: `input_stream` is `Unpin`, and this implementation does not
+        // move the pinned `IndicatorStream` value or project a pin to `inner`.
+        let this = unsafe { self.get_unchecked_mut() };
 
-        match input_stream.poll_next(cx) {
-            Poll::Ready(Some(input)) => {
-                let inner = unsafe { self.inner_mut() };
-                Poll::Ready(inner.next(input).into())
-            }
+        match Pin::new(&mut this.input_stream).poll_next(cx) {
+            Poll::Ready(Some(input)) => Poll::Ready(this.inner.next(input).into()),
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
         }

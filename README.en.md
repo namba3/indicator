@@ -1,10 +1,10 @@
 # Indicator
 
-[English](README.en.md) | 日本語
+English | [日本語](README.md)
 
-テクニカル分析で使うインジケーターを実装した Rust ライブラリです。
+A Rust library that implements indicators for technical analysis.
 
-## 使用例
+## Example
 
 ```rust
 use indicator::*;
@@ -21,7 +21,7 @@ fn main() {
 }
 ```
 
-## 実装済みのインジケーター
+## Implemented Indicators
 
 - Aroon Indicator
 - Aroon Oscillator
@@ -29,10 +29,10 @@ fn main() {
 - EMA: Exponential Moving Average
 - MACD: Moving Average Convergence Divergence
 - Max
-- Max Index（最高値の日からの経過日数）
-- Min Index（最安値の日からの経過日数）
+- Max Index (number of days elapsed since the highest price)
+- Min Index (number of days elapsed since the lowest price)
 - Min
-- RMA: Running Moving Average（Modified Moving Average とも呼ばれます）
+- RMA: Running Moving Average (also known as Modified Moving Average)
 - RSI: Relative Strength Index
 - SMA: Simple Moving Average
 - Standard Deviation
@@ -40,11 +40,11 @@ fn main() {
 - VWAP: Volume Weighted Average Price
 - VWMA: Volume Weighted Moving Average
 
-## 機能
+## Features
 
-### インジケーターの出力を変換する
+### Transform indicator output
 
-出力に関数を適用できます。
+Apply a function to an indicator's output.
 
 ```rust
 use std::f64::consts::PI;
@@ -58,9 +58,9 @@ for input in (0..100).map(|n| f64::sin(PI / 10.0 * n as f64)) {
 }
 ```
 
-### インジケーターを合成する
+### Compose indicators
 
-あるインジケーターの出力を、別のインジケーターへの入力として使えます。
+Use one indicator's output as the input to another indicator.
 
 ```rust
 use std::f64::consts::PI;
@@ -76,9 +76,9 @@ for input in (0..100).map(|n| f64::sin(PI / 10.0 * n as f64)) {
 }
 ```
 
-### 成熟前の値を除外する
+### Exclude immature values
 
-計算に必要なデータが十分に蓄積されるまで、出力を `None` にできます。
+Return `None` until enough data has been accumulated for the calculation.
 
 ```rust
 let sma = Sma::new(4).unwrap();
@@ -92,9 +92,9 @@ assert_eq!(sma.next(1.0), Some(1.5));
 assert_eq!(sma.next(2.0), Some(1.5));
 ```
 
-### 出力をウィンドウで取得する
+### Get outputs in a window
 
-内部インジケーターの直近 N 個の出力をまとめて取得できます。
+Collect the most recent N outputs from an inner indicator.
 
 ```rust
 let sma = Sma::new(5).unwrap();
@@ -108,9 +108,9 @@ assert_eq!(sma_window.next(102.0), &[&100.4, &100.8, &101.2]);
 assert_eq!(sma_window.next(102.0), &[&100.8, &101.2, &101.6]);
 ```
 
-### Iterator に変換する
+### Convert an indicator to an iterator
 
-入力値の Iterator から、インジケーターの出力を生成する Iterator を作れます。
+Create an iterator of indicator outputs from an iterator of input values.
 
 ```rust
 use std::f64::consts::PI;
@@ -125,9 +125,9 @@ while let Some(value) = sma_iter.next() {
 }
 ```
 
-### Stream に変換する
+### Convert an indicator to a stream
 
-入力 Stream から、インジケーターの出力を生成する Stream を作れます。この機能を使うには `stream` feature を有効にしてください。
+Create a stream of indicator outputs from an input stream. Enable the `stream` feature to use this functionality.
 
 ```rust
 use futures_util::{stream, StreamExt};

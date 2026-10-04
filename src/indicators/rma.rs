@@ -104,4 +104,10 @@ mod tests {
             },
         }
     }
+
+    #[test]
+    fn validates_minimum_period() {
+        assert!(Rma::new(1).is_err());
+        assert!(Rma::new(2).is_ok());
+    }
 }

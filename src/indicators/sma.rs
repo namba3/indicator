@@ -113,4 +113,15 @@ mod tests {
             },
         }
     }
+
+    #[test]
+    fn period_one_tracks_each_input() -> crate::Result<()> {
+        let mut sma = Sma::new(1)?;
+
+        for input in [3.5, -2.0, 0.0, 9.25] {
+            assert_eq!(sma.next(input), input);
+        }
+
+        Ok(())
+    }
 }

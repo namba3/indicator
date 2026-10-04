@@ -237,6 +237,8 @@ macro_rules! test_reset {
             let new:crate::Result<_> = $new;
             let mut indicator = new?;
 
+            assert!(crate::Current::current(&indicator).is_none());
+
             let inputs: Vec<_> = $inputs.into_iter().collect();
 
             let mut v = Vec::with_capacity(inputs.len());
@@ -245,6 +247,7 @@ macro_rules! test_reset {
             }
 
             Reset::reset(&mut indicator);
+            assert!(crate::Current::current(&indicator).is_none());
 
             for (i, x) in inputs.iter().copied().enumerate() {
                 assert_eq!(Next::next(&mut indicator, x), v[i]);
@@ -282,6 +285,8 @@ macro_rules! test_current {
         fn current() -> crate::Result<()> {
             let new:crate::Result<_> = $new;
             let mut indicator = new?;
+
+            assert!(crate::Current::current(&indicator).is_none());
 
             let inputs: Vec<_> = $inputs.into_iter().collect();
 

@@ -118,3 +118,74 @@ impl From<InvalidBinaryRelationError<usize>> for Error {
 impl std::error::Error for Error {}
 
 pub type Result<T> = core::result::Result<T, Error>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_range_errors_format_each_bound_shape() {
+        let lower = InvalidRangeError::new("period", 0, Range::LowerBounded { min: 1 });
+        let upper = InvalidRangeError::new("value", 3.0, Range::UpperBounded { max: 2.0 });
+        let both = InvalidRangeError::new("value", 5, Range::BothBounded { min: 1, max: 4 });
+
+        assert_eq!(
+            lower.to_string(),
+            "expected to be 1 <= period, but actually 0."
+        );
+        assert_eq!(
+            upper.to_string(),
+            "expected to be value <= 2, but actually 3."
+        );
+        assert_eq!(
+            both.to_string(),
+            "expected to be 1 <= value <= 4, but actually 5."
+        );
+    }
+
+    #[test]
+    fn invalid_binary_relation_error_formats_operands() {
+        let error = InvalidBinaryRelationError {
+            operator: "<",
+            lhs: Parameter::new("short_period", 2),
+            rhs: Parameter::new("long_period", 2),
+        };
+
+        assert_eq!(
+            error.to_string(),
+            "expected to be short_period < long_period, found 2 < 2."
+        );
+    }
+
+    #[test]
+    fn error_formats_each_wrapped_error_kind() {
+        let uint_range = Error::from(InvalidRangeError::new(
+            "period",
+            0,
+            Range::LowerBounded { min: 1 },
+        ));
+        let float_range = Error::from(InvalidRangeError::new(
+            "value",
+            3.0,
+            Range::UpperBounded { max: 2.0 },
+        ));
+        let relation = Error::from(InvalidBinaryRelationError {
+            operator: "<",
+            lhs: Parameter::new("short_period", 3),
+            rhs: Parameter::new("long_period", 2),
+        });
+
+        assert_eq!(
+            uint_range.to_string(),
+            "invalid uint range: expected to be 1 <= period, but actually 0."
+        );
+        assert_eq!(
+            float_range.to_string(),
+            "invalid float range: expected to be value <= 2, but actually 3."
+        );
+        assert_eq!(
+            relation.to_string(),
+            "invalid relation: expected to be short_period < long_period, found 3 < 2."
+        );
+    }
+}

@@ -52,6 +52,28 @@ fn vwap_handles_finite_prices_with_an_unrepresentable_difference() -> indicator:
     Ok(())
 }
 
+#[test]
+fn vwma_stays_stable_with_extreme_prices_and_volumes() -> indicator::Result<()> {
+    let mut large_volumes = Vwma::new(2)?;
+    assert_eq!(large_volumes.next_option((10.0, f64::MAX)), Some(10.0));
+    assert_eq!(large_volumes.next_option((20.0, f64::MAX)), Some(15.0));
+    assert_eq!(large_volumes.next_option((40.0, f64::MAX)), Some(30.0));
+
+    let mut extreme_prices = Vwma::new(2)?;
+    assert_eq!(
+        extreme_prices.next_option((-f64::MAX, 1.0)),
+        Some(-f64::MAX)
+    );
+    assert_eq!(extreme_prices.next_option((f64::MAX, 1.0)), Some(0.0));
+
+    let mut scale_expires = Vwma::new(2)?;
+    assert_eq!(scale_expires.next_option((10.0, f64::MAX)), Some(10.0));
+    assert_eq!(scale_expires.next_option((20.0, 1.0)), Some(10.0));
+    assert_eq!(scale_expires.next_option((40.0, 1.0)), Some(30.0));
+
+    Ok(())
+}
+
 #[derive(Clone)]
 struct Trade {
     price: f64,

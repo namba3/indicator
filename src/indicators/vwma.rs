@@ -11,6 +11,8 @@ pub struct Vwma {
     ring: VecDeque<(f64, f64)>,
     sum: Option<(f64, f64)>,
     compensation: (f64, f64),
+    volume_scale: f64,
+    max_volume_count: usize,
 }
 
 const CANCELLATION_THRESHOLD: f64 = 1.0e8;
@@ -47,6 +49,8 @@ impl Vwma {
                 ring: VecDeque::with_capacity(period),
                 sum: None,
                 compensation: (0.0, 0.0),
+                volume_scale: 0.0,
+                max_volume_count: 0,
             })
         }
     }
@@ -90,48 +94,101 @@ impl Vwma {
             return Err(InvalidVolumeError::new(volume).into());
         }
 
-        let mut removed = None;
-        match &mut self.sum {
-            Some((sum, total_volume)) => {
-                let (old_price, old_volume) = self.ring.pop_front().unwrap();
+        if self.sum.is_none() {
+            for _ in 0..self.period {
                 self.ring.push_back((price, volume));
-                removed = Some((old_price * old_volume, old_volume));
-
-                add_compensated(sum, &mut self.compensation.0, -(old_price * old_volume));
-                add_compensated(total_volume, &mut self.compensation.1, -old_volume);
-                add_compensated(sum, &mut self.compensation.0, price * volume);
-                add_compensated(total_volume, &mut self.compensation.1, volume);
             }
-            None => {
-                for _ in 0..self.period {
-                    self.ring.push_back((price, volume));
-                }
-                self.sum = (
-                    price * volume * self.period as f64,
-                    volume * self.period as f64,
-                )
-                    .into();
-                self.compensation = (0.0, 0.0);
+            self.volume_scale = volume;
+            self.max_volume_count = if volume > 0.0 { self.period } else { 0 };
+            self.sum = Some(if volume > 0.0 {
+                (price, 1.0)
+            } else {
+                (0.0, 0.0)
+            });
+            self.compensation = (0.0, 0.0);
+            return Ok(self.current());
+        }
+
+        let (old_price, old_volume) = self.ring.pop_front().unwrap();
+        self.ring.push_back((price, volume));
+
+        let old_scale = self.volume_scale;
+        if volume > old_scale {
+            let rescale = old_scale / volume;
+            if let Some((sum, total_volume)) = &mut self.sum {
+                *sum *= rescale;
+                *total_volume *= rescale;
+            }
+            self.compensation.0 *= rescale;
+            self.compensation.1 *= rescale;
+            self.volume_scale = volume;
+            self.max_volume_count = 1;
+        } else {
+            if old_scale > 0.0 && old_volume == old_scale {
+                self.max_volume_count -= 1;
+            }
+            if old_scale > 0.0 && volume == old_scale {
+                self.max_volume_count += 1;
+            }
+            let scale_ratio = if volume == 0.0 {
+                f64::INFINITY
+            } else {
+                old_scale / volume
+            };
+            if old_scale > 0.0 && self.max_volume_count == 0 && scale_ratio > CANCELLATION_THRESHOLD
+            {
+                self.recompute_sums();
+                return Ok(self.current());
             }
         }
 
-        if let (Some((removed_sum, removed_volume)), Some((sum, total_volume))) =
-            (removed, self.sum)
-        {
-            let sum_cancellation = requires_rebase(removed_sum, sum);
-            let volume_cancellation = requires_rebase(removed_volume, total_volume);
-            if sum_cancellation || volume_cancellation {
-                let (sum, total_volume) = self.sum.as_mut().unwrap();
-                self.compensation = (0.0, 0.0);
-                *sum = 0.0;
-                *total_volume = 0.0;
-                for (price, volume) in &self.ring {
-                    add_compensated(sum, &mut self.compensation.0, price * volume);
-                    add_compensated(total_volume, &mut self.compensation.1, *volume);
-                }
+        let removed_weight = normalized_volume_weight(old_volume, self.volume_scale, self.period);
+        let added_weight = normalized_volume_weight(volume, self.volume_scale, self.period);
+        let removed_sum = old_price * removed_weight;
+        if let Some((sum, total_volume)) = &mut self.sum {
+            add_compensated(sum, &mut self.compensation.0, -removed_sum);
+            add_compensated(total_volume, &mut self.compensation.1, -removed_weight);
+            add_compensated(sum, &mut self.compensation.0, price * added_weight);
+            add_compensated(total_volume, &mut self.compensation.1, added_weight);
+        }
+
+        if let Some((sum, total_volume)) = self.sum {
+            if requires_rebase(removed_sum, sum) || requires_rebase(removed_weight, total_volume) {
+                self.recompute_sums();
             }
         }
         Ok(self.current())
+    }
+
+    fn recompute_sums(&mut self) {
+        self.volume_scale = self
+            .ring
+            .iter()
+            .map(|(_, volume)| *volume)
+            .fold(0.0, f64::max);
+        self.max_volume_count = self
+            .ring
+            .iter()
+            .filter(|(_, volume)| *volume == self.volume_scale && self.volume_scale > 0.0)
+            .count();
+
+        let mut sum = 0.0;
+        let mut total_volume = 0.0;
+        self.compensation = (0.0, 0.0);
+        for (price, volume) in &self.ring {
+            let weight = normalized_volume_weight(*volume, self.volume_scale, self.period);
+            add_compensated(&mut sum, &mut self.compensation.0, price * weight);
+            add_compensated(&mut total_volume, &mut self.compensation.1, weight);
+        }
+        self.sum = Some((sum, total_volume));
+    }
+}
+
+fn normalized_volume_weight(volume: f64, scale: f64, period: usize) -> f64 {
+    if scale == 0.0 {
+        0.0
+    } else {
+        (volume / scale) / period as f64
     }
 }
 
@@ -164,6 +221,8 @@ impl Reset for Vwma {
         self.ring.clear();
         self.sum = None;
         self.compensation = (0.0, 0.0);
+        self.volume_scale = 0.0;
+        self.max_volume_count = 0;
     }
 }
 
@@ -242,8 +301,8 @@ mod tests {
 
         assert_eq!(indicator.next((100.0, 1.0)), 100.0);
         assert_eq!(indicator.next((999.0, 0.0)), 100.0);
-        assert_eq!(indicator.next((110.0, 1.0)), 105.0);
-        assert_eq!(indicator.next((110.0, 1.0)), 110.0);
+        assert!((indicator.next((110.0, 1.0)) - 105.0).abs() < 1e-12);
+        assert!((indicator.next((110.0, 1.0)) - 110.0).abs() < 1e-12);
 
         Ok(())
     }

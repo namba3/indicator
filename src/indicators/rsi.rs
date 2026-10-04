@@ -25,7 +25,14 @@ impl Rsi {
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         match &mut self.prev_input {
             Some(prev_input) => {
-                let change = input - *prev_input;
+                let mut change = input - *prev_input;
+                if change.is_infinite() && input.is_finite() && prev_input.is_finite() {
+                    change = if input > *prev_input {
+                        f64::MAX
+                    } else {
+                        -f64::MAX
+                    };
+                }
                 let _ = self.up.next(change.max(0.0));
                 let _ = self.down.next((-change).max(0.0));
                 *prev_input = input;
@@ -140,5 +147,20 @@ mod tests {
     fn period_must_meet_rma_minimum() {
         assert!(Rsi::new(1).is_err());
         assert!(Rsi::new(2).is_ok());
+    }
+
+    #[test]
+    fn extreme_finite_price_changes_do_not_poison_rsi_state() -> crate::Result<()> {
+        let mut rsi = Rsi::new(2)?;
+        assert_eq!(rsi.next(-f64::MAX), 0.5);
+        assert_eq!(rsi.next(f64::MAX), 1.0);
+
+        for input in [-f64::MAX, 0.0, f64::MAX] {
+            let value = rsi.next(input);
+            assert!(value.is_finite());
+            assert!((0.0..=1.0).contains(&value));
+        }
+
+        Ok(())
     }
 }

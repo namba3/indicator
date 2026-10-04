@@ -1,7 +1,6 @@
 use super::padded_window::values as padded_values;
 use crate::{
-    Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
-    try_deque_with_capacity,
+    Current, Indicator, Next, Price, Reset, Result, try_deque_with_capacity, validate_period,
 };
 use alloc::collections::VecDeque;
 
@@ -24,20 +23,13 @@ pub struct StandardDeviationOutput {
 
 impl StandardDeviation {
     pub fn new(period: usize) -> Result<Self> {
-        if period < 1 {
-            Err(InvalidRangeError {
-                param: Parameter::new("period", period),
-                range: Range::LowerBounded { min: 1 },
-            }
-            .into())
-        } else {
-            Ok(Self {
-                period,
-                ring: try_deque_with_capacity(period)?,
-                mean_sse: None,
-                scaled_mean_sse: None,
-            })
-        }
+        validate_period(period, 1)?;
+        Ok(Self {
+            period,
+            ring: try_deque_with_capacity(period)?,
+            mean_sse: None,
+            scaled_mean_sse: None,
+        })
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {

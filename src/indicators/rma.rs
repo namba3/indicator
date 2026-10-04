@@ -1,4 +1,4 @@
-use crate::{Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result};
+use crate::{Current, Indicator, Next, Price, Reset, Result, validate_period};
 
 /// Running Moving Average (a.k.a Modified Moving Average)
 #[derive(Debug, Clone)]
@@ -8,18 +8,11 @@ pub struct Rma {
 }
 impl Rma {
     pub fn new(period: usize) -> Result<Self> {
-        if period < 2 {
-            Err(InvalidRangeError {
-                param: Parameter::new("period", period),
-                range: Range::LowerBounded { min: 2 },
-            }
-            .into())
-        } else {
-            Ok(Self {
-                period,
-                current: None,
-            })
-        }
+        validate_period(period, 2)?;
+        Ok(Self {
+            period,
+            current: None,
+        })
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {

@@ -1,8 +1,7 @@
 use super::padded_window::values as padded_values;
 use super::rolling_candidates::{Direction, RollingCandidates};
 use crate::{
-    Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
-    try_deque_with_capacity,
+    Current, Indicator, Next, Price, Reset, Result, try_deque_with_capacity, validate_period,
 };
 use alloc::collections::VecDeque;
 
@@ -19,25 +18,18 @@ pub struct Min {
 }
 impl Min {
     pub fn new(period: usize) -> Result<Self> {
-        if period < 1 {
-            Err(InvalidRangeError {
-                param: Parameter::new("period", period),
-                range: Range::LowerBounded { min: 1 },
-            }
-            .into())
-        } else {
-            let ring = try_deque_with_capacity(period)?;
-            let candidates = RollingCandidates::new(Direction::Minimum, period)?;
-            Ok(Self {
-                period,
-                ring,
-                candidates,
-                position: 0,
-                nan_count: 0,
-                fast_path: true,
-                current: None,
-            })
-        }
+        validate_period(period, 1)?;
+        let ring = try_deque_with_capacity(period)?;
+        let candidates = RollingCandidates::new(Direction::Minimum, period)?;
+        Ok(Self {
+            period,
+            ring,
+            candidates,
+            position: 0,
+            nan_count: 0,
+            fast_path: true,
+            current: None,
+        })
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {

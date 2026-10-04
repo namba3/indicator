@@ -1,7 +1,7 @@
 use super::padded_window::values as padded_values;
 use crate::{
-    Current, Indicator, InvalidPriceError, InvalidRangeError, InvalidVolumeError, Next, Parameter,
-    Price, Range, Reset, Result, Volume, try_deque_with_capacity,
+    Current, Indicator, InvalidPriceError, InvalidVolumeError, Next, Price, Reset, Result, Volume,
+    try_deque_with_capacity, validate_period,
 };
 use alloc::collections::VecDeque;
 
@@ -38,22 +38,15 @@ fn add_compensated(sum: &mut f64, compensation: &mut f64, value: f64) {
 
 impl Vwma {
     pub fn new(period: usize) -> Result<Self> {
-        if period < 1 {
-            Err(InvalidRangeError {
-                param: Parameter::new("period", period),
-                range: Range::LowerBounded { min: 1 },
-            }
-            .into())
-        } else {
-            Ok(Self {
-                period,
-                ring: try_deque_with_capacity(period)?,
-                sum: None,
-                compensation: (0.0, 0.0),
-                volume_scale: 0.0,
-                max_volume_count: 0,
-            })
-        }
+        validate_period(period, 1)?;
+        Ok(Self {
+            period,
+            ring: try_deque_with_capacity(period)?,
+            sum: None,
+            compensation: (0.0, 0.0),
+            volume_scale: 0.0,
+            max_volume_count: 0,
+        })
     }
 
     /// Update the indicator and return `None` when the window has zero total volume.

@@ -1,7 +1,4 @@
-use crate::{
-    Current, Indicator, InvalidRangeError, Max, Min, Next, Parameter, Price, Range, Reset, Result,
-    Sma,
-};
+use crate::{Current, Indicator, Max, Min, Next, Price, Reset, Result, Sma, validate_period};
 
 /// Stochastics
 ///
@@ -22,13 +19,7 @@ impl Stochastics {
 
     /// Creates Stochastics with lookback and smoothing periods.
     pub fn new(n_period: usize, m_period: usize, x_period: usize) -> Result<Self> {
-        if n_period < 1 {
-            return Err(InvalidRangeError {
-                param: Parameter::new("period", n_period),
-                range: Range::LowerBounded { min: 1 },
-            }
-            .into());
-        }
+        validate_period(n_period, 1)?;
 
         let d_numerator = Sma::new(m_period)?;
         let d_denominator = Sma::new(m_period)?;

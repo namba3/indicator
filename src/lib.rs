@@ -16,6 +16,18 @@
 #![allow(dead_code)]
 extern crate alloc;
 
+pub(crate) fn validate_period(period: usize, minimum: usize) -> Result<()> {
+    if period < minimum {
+        Err(InvalidRangeError {
+            param: Parameter::new("period", period),
+            range: Range::LowerBounded { min: minimum },
+        }
+        .into())
+    } else {
+        Ok(())
+    }
+}
+
 pub(crate) fn try_deque_with_capacity<T>(
     capacity: usize,
 ) -> Result<alloc::collections::VecDeque<T>> {

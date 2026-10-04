@@ -1,6 +1,6 @@
 use crate::{
     Current, Indicator, InvalidRangeError, MaxIndex, MinIndex, Next, Parameter, Price, Range,
-    Reset, Result,
+    Reset, Result, validate_period,
 };
 
 /// Aroon Indicator
@@ -16,27 +16,20 @@ impl AroonIndicator {
     pub const DEFAULT_PERIOD: usize = 14;
 
     pub fn new(period: usize) -> Result<Self> {
-        if period < 1 {
-            Err(InvalidRangeError {
-                param: Parameter::new("period", period),
-                range: Range::LowerBounded { min: 1 },
-            }
-            .into())
-        } else {
-            let index_period = period.checked_add(1).ok_or_else(|| InvalidRangeError {
-                param: Parameter::new("period", period),
-                range: Range::UpperBounded {
-                    max: usize::MAX - 1,
-                },
-            })?;
-            let min_index = MinIndex::new(index_period)?;
-            let max_index = MaxIndex::new(index_period)?;
-            Ok(Self {
-                period,
-                min_index,
-                max_index,
-            })
-        }
+        validate_period(period, 1)?;
+        let index_period = period.checked_add(1).ok_or_else(|| InvalidRangeError {
+            param: Parameter::new("period", period),
+            range: Range::UpperBounded {
+                max: usize::MAX - 1,
+            },
+        })?;
+        let min_index = MinIndex::new(index_period)?;
+        let max_index = MaxIndex::new(index_period)?;
+        Ok(Self {
+            period,
+            min_index,
+            max_index,
+        })
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {

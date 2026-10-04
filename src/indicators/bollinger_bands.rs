@@ -1,6 +1,6 @@
 use crate::{
     Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result,
-    StandardDeviation,
+    StandardDeviation, validate_period,
 };
 
 /// Bollinger Bands
@@ -20,13 +20,7 @@ pub struct BollingerBandsOutput {
 impl BollingerBands {
     /// Creates Bollinger Bands with a finite, non-negative standard deviation multiplier.
     pub fn new(period: usize, multiplier: f64) -> Result<Self> {
-        if period < 1 {
-            return Err(InvalidRangeError {
-                param: Parameter::new("period", period),
-                range: Range::LowerBounded { min: 1 },
-            }
-            .into());
-        }
+        validate_period(period, 1)?;
         if !multiplier.is_finite() || multiplier < 0.0 {
             return Err(InvalidRangeError {
                 param: Parameter::new("multiplier", multiplier),

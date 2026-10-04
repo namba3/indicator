@@ -24,6 +24,24 @@ impl<Inner: Indicator> Window<Inner> {
         self.inner
     }
 
+    /// Iterate over the most recent outputs without allocating a snapshot.
+    ///
+    /// Before the first input, and after `reset`, the iterator is empty. Once
+    /// values are available, missing entries at the start repeat the first
+    /// output, matching the snapshots returned by [`Next::next`].
+    pub fn iter(&self) -> impl Iterator<Item = &Inner::Output> {
+        let missing = if self.is_first {
+            0
+        } else {
+            self.window_size - self.ring.len()
+        };
+        self.ring
+            .front()
+            .into_iter()
+            .flat_map(move |first| core::iter::repeat_n(first, missing))
+            .chain(self.ring.iter())
+    }
+
     fn window(&self) -> Vec<Inner::Output>
     where
         Inner::Output: Clone,
@@ -90,7 +108,7 @@ where
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use crate::{Price, Sma};
+    use crate::{IndicatorExt, Price, Sma};
     use std::sync::LazyLock as SyncLazy;
 
     #[derive(Clone)]
@@ -209,6 +227,40 @@ mod tests {
             let value = window.next(input);
             assert_eq!(value, v[i]);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn iter_borrows_padded_and_rolling_outputs_without_changing_snapshot_behavior()
+    -> crate::Result<()> {
+        let mut window = Sma::new(1)?.window(3);
+        assert_eq!(window.iter().count(), 0);
+        assert_eq!(window.current(), None);
+
+        assert_eq!(window.next(1.0), [1.0, 1.0, 1.0]);
+        assert_eq!(window.iter().copied().collect::<Vec<_>>(), [1.0, 1.0, 1.0]);
+
+        assert_eq!(window.next(2.0), [1.0, 1.0, 2.0]);
+        assert_eq!(window.iter().copied().collect::<Vec<_>>(), [1.0, 1.0, 2.0]);
+
+        assert_eq!(window.next(3.0), [1.0, 2.0, 3.0]);
+        assert_eq!(window.iter().copied().collect::<Vec<_>>(), [1.0, 2.0, 3.0]);
+
+        window.reset();
+        assert_eq!(window.iter().count(), 0);
+        assert_eq!(window.current(), None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn iter_is_empty_for_a_zero_sized_window() -> crate::Result<()> {
+        let mut window = Sma::new(1)?.window(0);
+        assert_eq!(window.iter().count(), 0);
+
+        window.next(1.0);
+        assert_eq!(window.iter().count(), 0);
 
         Ok(())
     }

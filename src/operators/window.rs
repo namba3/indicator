@@ -2,6 +2,43 @@ use alloc::{collections::VecDeque, vec::Vec};
 
 use crate::{Current, Indicator, Next, Reset, Result, try_deque_with_capacity};
 
+struct WindowIter<'a, T, Values> {
+    first: Option<&'a T>,
+    padding_remaining: usize,
+    values: Values,
+}
+
+impl<'a, T, Values> Iterator for WindowIter<'a, T, Values>
+where
+    Values: ExactSizeIterator<Item = &'a T>,
+{
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if 0 < self.padding_remaining {
+            self.padding_remaining -= 1;
+            self.first
+        } else {
+            self.values.next()
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.padding_remaining + self.values.len();
+        (len, Some(len))
+    }
+}
+
+impl<'a, T, Values> ExactSizeIterator for WindowIter<'a, T, Values> where
+    Values: ExactSizeIterator<Item = &'a T>
+{
+}
+
+impl<'a, T, Values> core::iter::FusedIterator for WindowIter<'a, T, Values> where
+    Values: ExactSizeIterator<Item = &'a T> + core::iter::FusedIterator
+{
+}
+
 /// Create a new indicator that outputs the past N output values ​​of the inner indicator.
 pub struct Window<Inner: Indicator> {
     inner: Inner,
@@ -33,17 +70,21 @@ impl<Inner: Indicator> Window<Inner> {
     /// Before the first input, and after `reset`, the iterator is empty. Once
     /// values are available, missing entries at the start repeat the first
     /// output, matching the snapshots returned by [`Next::next`].
-    pub fn iter(&self) -> impl Iterator<Item = &Inner::Output> {
-        let missing = if self.is_first {
-            0
-        } else {
+    pub fn iter(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &Inner::Output> + core::iter::FusedIterator + '_ {
+        let first = self.ring.front();
+        let padding_remaining = if first.is_some() && !self.is_first {
             self.window_size - self.ring.len()
+        } else {
+            0
         };
-        self.ring
-            .front()
-            .into_iter()
-            .flat_map(move |first| core::iter::repeat_n(first, missing))
-            .chain(self.ring.iter())
+
+        WindowIter {
+            first,
+            padding_remaining,
+            values: self.ring.iter(),
+        }
     }
 
     /// Advance the inner indicator without creating an owned window snapshot.
@@ -251,12 +292,15 @@ mod tests {
     -> crate::Result<()> {
         let mut window = Sma::new(1)?.window(3);
         assert_eq!(window.iter().count(), 0);
+        assert_eq!(window.iter().len(), 0);
         assert_eq!(window.current(), None);
 
         assert_eq!(window.next(1.0), [1.0, 1.0, 1.0]);
+        assert_eq!(window.iter().len(), 3);
         assert_eq!(window.iter().copied().collect::<Vec<_>>(), [1.0, 1.0, 1.0]);
 
         assert_eq!(window.next(2.0), [1.0, 1.0, 2.0]);
+        assert_eq!(window.iter().len(), 3);
         assert_eq!(window.iter().copied().collect::<Vec<_>>(), [1.0, 1.0, 2.0]);
 
         assert_eq!(window.next(3.0), [1.0, 2.0, 3.0]);
@@ -264,6 +308,7 @@ mod tests {
 
         window.reset();
         assert_eq!(window.iter().count(), 0);
+        assert_eq!(window.iter().len(), 0);
         assert_eq!(window.current(), None);
 
         Ok(())
@@ -273,9 +318,30 @@ mod tests {
     fn iter_is_empty_for_a_zero_sized_window() -> crate::Result<()> {
         let mut window = Sma::new(1)?.window(0);
         assert_eq!(window.iter().count(), 0);
+        assert_eq!(window.iter().len(), 0);
 
         window.next(1.0);
         assert_eq!(window.iter().count(), 0);
+        assert_eq!(window.iter().len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn iter_reports_remaining_length_and_is_fused() -> crate::Result<()> {
+        let mut window = Sma::new(1)?.window(3);
+        window.advance(7.0);
+
+        let mut iter = window.iter();
+        assert_eq!(iter.len(), 3);
+        assert_eq!(iter.next(), Some(&7.0));
+        assert_eq!(iter.len(), 2);
+        assert_eq!(iter.next(), Some(&7.0));
+        assert_eq!(iter.len(), 1);
+        assert_eq!(iter.next(), Some(&7.0));
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
 
         Ok(())
     }

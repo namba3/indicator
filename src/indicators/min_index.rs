@@ -54,7 +54,7 @@ impl MinIndex {
             return 0;
         }
 
-        self.position += 1;
+        self.position = self.position.wrapping_add(1);
         let old_index = self.current.unwrap().min(self.period - 1);
         let old_min = self.ring[old_index];
         let old_value = self.ring.pop_back().unwrap();
@@ -66,7 +66,7 @@ impl MinIndex {
             while self
                 .candidates
                 .front()
-                .is_some_and(|(position, _)| self.position - position >= self.period)
+                .is_some_and(|(position, _)| self.position.wrapping_sub(*position) >= self.period)
             {
                 self.candidates.pop_front();
             }
@@ -78,7 +78,10 @@ impl MinIndex {
                 self.candidates.pop_back();
             }
             self.candidates.push_back((self.position, input));
-            self.current = Some(self.position - self.candidates.front().unwrap().0);
+            self.current = Some(
+                self.position
+                    .wrapping_sub(self.candidates.front().unwrap().0),
+            );
         } else {
             let min_index = if input <= old_min {
                 0
@@ -105,9 +108,9 @@ impl MinIndex {
 
     fn rebuild_candidates(&mut self) {
         self.candidates.clear();
-        let oldest_position = self.position - (self.period - 1);
+        let oldest_position = self.position.wrapping_sub(self.period - 1);
         for (offset, value) in self.ring.iter().rev().copied().enumerate() {
-            let position = oldest_position + offset;
+            let position = oldest_position.wrapping_add(offset);
             while self
                 .candidates
                 .back()
@@ -117,7 +120,10 @@ impl MinIndex {
             }
             self.candidates.push_back((position, value));
         }
-        self.current = Some(self.position - self.candidates.front().unwrap().0);
+        self.current = Some(
+            self.position
+                .wrapping_sub(self.candidates.front().unwrap().0),
+        );
     }
 }
 
@@ -229,6 +235,22 @@ mod tests {
         for (input, expected) in [(f64::NAN, 0), (1.0, 1), (2.0, 2), (0.0, 0), (3.0, 1)] {
             assert_eq!(indicator.next(input), expected);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn rolling_position_wrap_preserves_minimum_age() -> crate::Result<()> {
+        let mut indicator = MinIndex::new(3)?;
+        assert_eq!(indicator.next(1.0), 0);
+        indicator.position = usize::MAX;
+        indicator.fast_path = false;
+        indicator.candidates.clear();
+        indicator.candidates.push_back((usize::MAX, 1.0));
+
+        assert_eq!(indicator.next(2.0), 1);
+        assert_eq!(indicator.next(2.0), 2);
+        assert_eq!(indicator.next(0.0), 0);
 
         Ok(())
     }

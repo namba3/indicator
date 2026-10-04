@@ -54,7 +54,7 @@ impl Min {
             return input;
         }
 
-        self.position += 1;
+        self.position = self.position.wrapping_add(1);
         let old_val = self.ring.pop_front().unwrap();
         self.ring.push_back(input);
         self.nan_count -= usize::from(old_val.is_nan());
@@ -64,7 +64,7 @@ impl Min {
             while self
                 .candidates
                 .front()
-                .is_some_and(|(position, _)| self.position - position >= self.period)
+                .is_some_and(|(position, _)| self.position.wrapping_sub(*position) >= self.period)
             {
                 self.candidates.pop_front();
             }
@@ -102,9 +102,9 @@ impl Min {
 
     fn rebuild_candidates(&mut self) {
         self.candidates.clear();
-        let oldest_position = self.position - (self.period - 1);
+        let oldest_position = self.position.wrapping_sub(self.period - 1);
         for (offset, value) in self.ring.iter().copied().enumerate() {
-            let position = oldest_position + offset;
+            let position = oldest_position.wrapping_add(offset);
             while self
                 .candidates
                 .back()
@@ -202,5 +202,20 @@ mod tests {
         for (input, expected) in inputs.into_iter().zip(outputs) {
             assert_eq!(min.next(input), expected);
         }
+    }
+
+    #[test]
+    fn rolling_position_wraps_without_changing_the_minimum() -> crate::Result<()> {
+        let mut min = Min::new(3)?;
+        assert_eq!(min.next(1.0), 1.0);
+        min.position = usize::MAX;
+        min.fast_path = false;
+        min.candidates.clear();
+        min.candidates.push_back((usize::MAX, 1.0));
+
+        assert_eq!(min.next(2.0), 1.0);
+        assert_eq!(min.next(0.0), 0.0);
+
+        Ok(())
     }
 }

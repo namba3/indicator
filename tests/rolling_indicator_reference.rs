@@ -1,6 +1,6 @@
 use indicator::{
-    Current, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Sma, StandardDeviation, Vwap,
-    Vwma,
+    Current, Ema, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Rma, Sma,
+    StandardDeviation, Vwap, Vwma,
 };
 
 fn deterministic_inputs() -> Vec<f64> {
@@ -17,6 +17,55 @@ fn deterministic_inputs() -> Vec<f64> {
     }
 
     inputs
+}
+
+#[test]
+fn ema_and_rma_match_scalar_references_across_long_sequences_and_reset() -> indicator::Result<()> {
+    const EMA_PERIOD: usize = 17;
+    const RMA_PERIOD: usize = 23;
+    let inputs = deterministic_inputs();
+    let mut ema = Ema::new(EMA_PERIOD)?;
+    let mut rma = Rma::new(RMA_PERIOD)?;
+    let mut expected_ema = None;
+    let mut expected_rma = None;
+
+    for (position, input) in inputs.into_iter().enumerate() {
+        if position == 257 {
+            ema.reset();
+            rma.reset();
+            expected_ema = None;
+            expected_rma = None;
+        }
+
+        let alpha_ema = 2.0 / (EMA_PERIOD as f64 + 1.0);
+        let alpha_rma = 1.0 / RMA_PERIOD as f64;
+        let next_expected_ema = expected_ema.map_or(input, |previous| {
+            previous * (1.0 - alpha_ema) + input * alpha_ema
+        });
+        let next_expected_rma = expected_rma.map_or(input, |previous| {
+            previous * (1.0 - alpha_rma) + input * alpha_rma
+        });
+
+        let actual_ema = ema.next(input);
+        let actual_rma = rma.next(input);
+        let ema_tolerance = 1.0e-12 * next_expected_ema.abs().max(1.0);
+        let rma_tolerance = 1.0e-12 * next_expected_rma.abs().max(1.0);
+
+        assert!(
+            (actual_ema - next_expected_ema).abs() <= ema_tolerance,
+            "position {position}: EMA {actual_ema}, expected {next_expected_ema}, tolerance {ema_tolerance}"
+        );
+        assert!(
+            (actual_rma - next_expected_rma).abs() <= rma_tolerance,
+            "position {position}: RMA {actual_rma}, expected {next_expected_rma}, tolerance {rma_tolerance}"
+        );
+        assert_eq!(ema.current(), Some(actual_ema));
+        assert_eq!(rma.current(), Some(actual_rma));
+        expected_ema = Some(next_expected_ema);
+        expected_rma = Some(next_expected_rma);
+    }
+
+    Ok(())
 }
 
 #[test]

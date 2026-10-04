@@ -12,6 +12,7 @@ pub struct StandardDeviation {
     period: usize,
     ring: VecDeque<f64>,
     mean_sse: Option<(f64, f64)>,
+    scaled_mean_sse: Option<(f64, f64, f64, usize)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -33,36 +34,76 @@ impl StandardDeviation {
                 period,
                 ring: try_deque_with_capacity(period)?,
                 mean_sse: None,
+                scaled_mean_sse: None,
             })
         }
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
-        let should_recompute = match &mut self.mean_sse {
-            Some((mean, sse)) => {
-                let old_input = self.ring.pop_front().unwrap();
-                self.ring.push_back(input);
+        if let Some((mean, sse)) = self.mean_sse {
+            let old_input = self.ring.pop_front().unwrap();
+            self.ring.push_back(input);
 
-                let delta = input - old_input;
-                let old_mean = *mean;
-                let old_sse = *sse;
-                *mean += delta / self.period as f64;
-                let delta2 = input - *mean + old_input - old_mean;
-                *sse += delta * delta2;
+            let delta = input - old_input;
+            let new_mean = mean + delta / self.period as f64;
+            let delta2 = input - new_mean + old_input - mean;
+            let new_sse = sse + delta * delta2;
+
+            if !input.is_finite() || !old_input.is_finite() {
+                self.mean_sse = Some((new_mean, new_sse));
+            } else if delta.is_finite()
+                && new_mean.is_finite()
+                && delta2.is_finite()
+                && new_sse.is_finite()
+            {
+                self.mean_sse = Some((new_mean, new_sse));
 
                 // Rebuild after near-total cancellation to avoid retaining its rounding error.
-                *sse < 0.0 || (old_sse > 0.0 && *sse <= old_sse * RECOMPUTE_SSE_RATIO)
-            }
-            None => {
-                for _ in 0..self.period {
-                    self.ring.push_back(input);
+                if new_sse < 0.0 || (sse > 0.0 && new_sse <= sse * RECOMPUTE_SSE_RATIO) {
+                    self.recompute_mean_sse();
                 }
-                self.mean_sse = (input, 0.0).into();
-                false
+            } else {
+                self.mean_sse = None;
+                self.recompute_scaled_mean_sse();
             }
-        };
-        if should_recompute {
-            self.recompute_mean_sse();
+        } else if let Some((scale, mean, sse, scale_count)) = self.scaled_mean_sse {
+            let old_input = self.ring.pop_front().unwrap();
+            self.ring.push_back(input);
+
+            let old_is_scale = old_input.abs() == scale;
+            let input_is_scale = input.abs() == scale;
+            if !input.is_finite()
+                || !old_input.is_finite()
+                || input.abs() > scale
+                || (old_is_scale && !input_is_scale && scale_count == 1)
+            {
+                self.recompute_scaled_mean_sse();
+            } else if scale == 0.0 {
+                self.scaled_mean_sse = Some((scale, mean, sse, scale_count));
+            } else {
+                let old_scaled = old_input / scale;
+                let input_scaled = input / scale;
+                let delta = input_scaled - old_scaled;
+                let new_mean = mean + delta / self.period as f64;
+                let delta2 = input_scaled - new_mean + old_scaled - mean;
+                let new_sse = sse + delta * delta2;
+                let new_scale_count =
+                    scale_count - usize::from(old_is_scale) + usize::from(input_is_scale);
+
+                if new_sse.is_finite() && new_sse >= 0.0 {
+                    self.scaled_mean_sse = Some((scale, new_mean, new_sse, new_scale_count));
+                    if sse > 0.0 && new_sse <= sse * RECOMPUTE_SSE_RATIO {
+                        self.recompute_scaled_mean_sse();
+                    }
+                } else {
+                    self.recompute_scaled_mean_sse();
+                }
+            }
+        } else {
+            for _ in 0..self.period {
+                self.ring.push_back(input);
+            }
+            self.mean_sse = (input, 0.0).into();
         }
         self.current().unwrap()
     }
@@ -79,9 +120,47 @@ impl StandardDeviation {
                 let delta = value - mean;
                 delta * delta
             })
-            .sum();
+            .sum::<f64>();
 
-        self.mean_sse = Some((mean, sse));
+        if mean.is_finite() && sse.is_finite() && sse >= 0.0 {
+            self.mean_sse = Some((mean, sse));
+        } else {
+            self.mean_sse = None;
+            self.recompute_scaled_mean_sse();
+        }
+    }
+
+    fn recompute_scaled_mean_sse(&mut self) {
+        if self.ring.iter().any(|value| !value.is_finite()) {
+            self.scaled_mean_sse = Some((f64::NAN, f64::NAN, f64::NAN, 0));
+            return;
+        }
+
+        let scale = self
+            .ring
+            .iter()
+            .map(|value| value.abs())
+            .fold(0.0, f64::max);
+        if scale == 0.0 {
+            self.scaled_mean_sse = Some((0.0, 0.0, 0.0, self.period));
+            return;
+        }
+
+        let mean = self.ring.iter().map(|value| value / scale).sum::<f64>() / self.period as f64;
+        let sse = self
+            .ring
+            .iter()
+            .map(|value| {
+                let delta = value / scale - mean;
+                delta * delta
+            })
+            .sum();
+        let scale_count = self
+            .ring
+            .iter()
+            .filter(|value| value.abs() == scale)
+            .count();
+        self.scaled_mean_sse = Some((scale, mean, sse, scale_count));
     }
 }
 
@@ -94,6 +173,12 @@ impl Current for StandardDeviation {
             Self::Output {
                 mean,
                 sd: libm::sqrt(sse / self.period as f64),
+            }
+            .into()
+        } else if let Some((scale, mean, sse, _)) = self.scaled_mean_sse {
+            Self::Output {
+                mean: mean.clamp(-1.0, 1.0) * scale,
+                sd: libm::sqrt(sse / self.period as f64).clamp(0.0, 1.0) * scale,
             }
             .into()
         } else {
@@ -115,6 +200,7 @@ impl Reset for StandardDeviation {
     fn reset(&mut self) {
         self.ring.clear();
         self.mean_sse = None;
+        self.scaled_mean_sse = None;
     }
 }
 
@@ -196,6 +282,55 @@ mod tests {
                 }
             );
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn extreme_finite_values_keep_representable_statistics() -> crate::Result<()> {
+        let mut indicator = StandardDeviation::new(2)?;
+        assert_eq!(
+            indicator.next(f64::MAX),
+            StandardDeviationOutput {
+                mean: f64::MAX,
+                sd: 0.0,
+            }
+        );
+        assert_eq!(
+            indicator.next(-f64::MAX),
+            StandardDeviationOutput {
+                mean: 0.0,
+                sd: f64::MAX,
+            }
+        );
+        assert_eq!(
+            indicator.next(-f64::MAX),
+            StandardDeviationOutput {
+                mean: -f64::MAX,
+                sd: 0.0,
+            }
+        );
+        assert_eq!(
+            indicator.next(0.0),
+            StandardDeviationOutput {
+                mean: -f64::MAX / 2.0,
+                sd: f64::MAX / 2.0,
+            }
+        );
+        assert_eq!(
+            indicator.next(0.0),
+            StandardDeviationOutput { mean: 0.0, sd: 0.0 }
+        );
+
+        let mut squared_deviation = StandardDeviation::new(2)?;
+        let _ = squared_deviation.next(f64::MAX);
+        assert_eq!(
+            squared_deviation.next(f64::MAX / 2.0),
+            StandardDeviationOutput {
+                mean: f64::MAX * 0.75,
+                sd: f64::MAX * 0.25,
+            }
+        );
 
         Ok(())
     }

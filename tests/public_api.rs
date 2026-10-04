@@ -1,0 +1,69 @@
+use indicator::{Current, IndicatorExt, Next, Price, Reset, Volume, Vwap, Vwma};
+
+#[derive(Clone)]
+struct Trade {
+    price: f64,
+    volume: f64,
+}
+
+impl Price for Trade {
+    fn price(&self) -> f64 {
+        self.price
+    }
+}
+
+impl Volume for Trade {
+    fn volume(&self) -> f64 {
+        self.volume
+    }
+}
+
+#[test]
+fn custom_market_data_composes_public_volume_indicators() -> indicator::Result<()> {
+    let mut indicators = Vwap::new().together(Vwma::new(2)?);
+    let trades = [
+        Trade {
+            price: 100.0,
+            volume: 1.0,
+        },
+        Trade {
+            price: 110.0,
+            volume: 1.0,
+        },
+        Trade {
+            price: 120.0,
+            volume: 2.0,
+        },
+    ];
+
+    assert_eq!(indicators.current(), None);
+    assert_eq!(indicators.next(&trades[0]), (100.0, 100.0));
+    assert_eq!(indicators.current(), Some((100.0, 100.0)));
+    assert_eq!(indicators.next(&trades[1]), (105.0, 105.0));
+
+    let (vwap, vwma) = indicators.next(&trades[2]);
+    assert!((vwap - 112.5).abs() < 1e-12);
+    assert!((vwma - (350.0 / 3.0)).abs() < 1e-12);
+
+    indicators.reset();
+    assert_eq!(indicators.current(), None);
+    assert_eq!(indicators.next(&trades[0]), (100.0, 100.0));
+
+    Ok(())
+}
+
+#[test]
+fn option_api_accepts_custom_market_data() {
+    let mut vwap = Vwap::new();
+    let zero_volume_trade = Trade {
+        price: 100.0,
+        volume: 0.0,
+    };
+    let trade = Trade {
+        price: 110.0,
+        volume: 2.0,
+    };
+
+    assert_eq!(vwap.next_option(&zero_volume_trade), None);
+    assert_eq!(vwap.next_option(&trade), Some(110.0));
+}

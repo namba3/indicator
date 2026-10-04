@@ -2,7 +2,7 @@ use std::hint::black_box;
 use std::time::Instant;
 
 use indicator::{
-    BollingerBands, Ema, IndicatorExt, Macd, Max, MaxIndex, Min, MinIndex, Next, Rsi, Sma,
+    BollingerBands, Ema, IndicatorExt, Macd, Max, MaxIndex, Min, MinIndex, Next, Reset, Rsi, Sma,
     StandardDeviation, Stochastics, Vwap, Vwma,
 };
 
@@ -147,6 +147,16 @@ fn run_window_benchmarks(iterations: usize) {
     }
 }
 
+fn run_sma_first_input_benchmarks(iterations: usize) {
+    for period in PERIODS {
+        let mut sma = Sma::new(period).expect("valid SMA period");
+        run_benchmark(&format!("SMA/{period}/first-input"), iterations, |index| {
+            sma.reset();
+            sma.next(black_box(price_at(index)))
+        });
+    }
+}
+
 fn main() {
     let iterations = std::env::args()
         .nth(1)
@@ -235,6 +245,7 @@ fn main() {
 
     run_extrema_benchmarks(iterations);
     run_window_benchmarks(iterations);
+    run_sma_first_input_benchmarks(iterations);
 
     let mut vwap = Vwap::new();
     run_benchmark("VWAP", iterations, |index| {

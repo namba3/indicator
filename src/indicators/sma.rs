@@ -32,8 +32,7 @@ impl Sma {
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         if let Some(sum) = self.sum {
-            let old_value = self.ring.pop_front().unwrap();
-            self.ring.push_back(input);
+            let old_value = self.push_window(input);
 
             let sum_without_old = sum - old_value;
             let updated_sum = sum_without_old + input;
@@ -45,13 +44,10 @@ impl Sma {
                 self.mean = Some(Self::update_mean(mean, old_value, input, self.period));
             }
         } else if let Some(mean) = self.mean {
-            let old_value = self.ring.pop_front().unwrap();
-            self.ring.push_back(input);
+            let old_value = self.push_window(input);
             self.mean = Some(Self::update_mean(mean, old_value, input, self.period));
         } else {
-            for _ in 0..self.period {
-                self.ring.push_back(input);
-            }
+            self.ring.push_back(input);
             let sum = input * self.period as f64;
             if sum.is_finite() {
                 self.sum = Some(sum);
@@ -60,6 +56,16 @@ impl Sma {
             }
         }
         self.current().unwrap()
+    }
+
+    fn push_window(&mut self, input: f64) -> f64 {
+        let old_value = if self.ring.len() < self.period {
+            *self.ring.front().unwrap()
+        } else {
+            self.ring.pop_front().unwrap()
+        };
+        self.ring.push_back(input);
+        old_value
     }
 
     fn update_mean(mean: f64, old_value: f64, input: f64, period: usize) -> f64 {
@@ -153,6 +159,35 @@ mod tests {
         for input in [3.5, -2.0, 0.0, 9.25] {
             assert_eq!(sma.next(input), input);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn first_input_is_stored_once_while_outputs_keep_virtual_padding() -> crate::Result<()> {
+        let mut sma = Sma::new(3)?;
+
+        assert_eq!(sma.next(2.0), 2.0);
+        assert_eq!(sma.ring.iter().copied().collect::<Vec<_>>(), [2.0]);
+
+        assert_eq!(sma.next(4.0), 2.0 + 2.0 / 3.0);
+        assert_eq!(sma.ring.iter().copied().collect::<Vec<_>>(), [2.0, 4.0]);
+
+        assert_eq!(sma.next(6.0), 4.0);
+        assert_eq!(
+            sma.ring.iter().copied().collect::<Vec<_>>(),
+            [2.0, 4.0, 6.0]
+        );
+
+        assert_eq!(sma.next(8.0), 6.0);
+        assert_eq!(
+            sma.ring.iter().copied().collect::<Vec<_>>(),
+            [4.0, 6.0, 8.0]
+        );
+
+        sma.reset();
+        assert_eq!(sma.next(10.0), 10.0);
+        assert_eq!(sma.ring.iter().copied().collect::<Vec<_>>(), [10.0]);
 
         Ok(())
     }

@@ -138,32 +138,34 @@ impl StandardDeviation {
     }
 
     fn recompute_scaled_mean_sse(&mut self) {
-        if padded_values(&self.ring, self.period).any(|value| !value.is_finite()) {
-            self.scaled_mean_sse = Some((f64::NAN, f64::NAN, f64::NAN, 0));
-            return;
+        let mut scale = 0.0_f64;
+        for value in padded_values(&self.ring, self.period) {
+            if !value.is_finite() {
+                self.scaled_mean_sse = Some((f64::NAN, f64::NAN, f64::NAN, 0));
+                return;
+            }
+            scale = scale.max(value.abs());
         }
 
-        let scale = padded_values(&self.ring, self.period)
-            .map(f64::abs)
-            .fold(0.0, f64::max);
         if scale == 0.0 {
             self.scaled_mean_sse = Some((0.0, 0.0, 0.0, self.period));
             return;
         }
 
-        let mean = padded_values(&self.ring, self.period)
-            .map(|value| value / scale)
-            .sum::<f64>()
-            / self.period as f64;
+        let (scaled_sum, scale_count) =
+            padded_values(&self.ring, self.period).fold((0.0, 0), |(sum, count), value| {
+                (
+                    sum + value / scale,
+                    count + usize::from(value.abs() == scale),
+                )
+            });
+        let mean = scaled_sum / self.period as f64;
         let sse = padded_values(&self.ring, self.period)
             .map(|value| {
                 let delta = value / scale - mean;
                 delta * delta
             })
             .sum();
-        let scale_count = padded_values(&self.ring, self.period)
-            .filter(|value| value.abs() == scale)
-            .count();
         self.scaled_mean_sse = Some((scale, mean, sse, scale_count));
     }
 }
@@ -355,6 +357,11 @@ mod tests {
             indicator.ring.iter().copied().collect::<Vec<_>>(),
             [f64::MAX, -f64::MAX]
         );
+        let (scale, scaled_mean, scaled_sse, scale_count) = indicator.scaled_mean_sse.unwrap();
+        assert_eq!(scale, f64::MAX);
+        assert!((scaled_mean - 1.0 / 3.0).abs() < 1.0e-15);
+        assert!((scaled_sse - 8.0 / 3.0).abs() < 1.0e-15);
+        assert_eq!(scale_count, 3);
         assert!((output.mean / f64::MAX - 1.0 / 3.0).abs() < 1.0e-15);
         assert!((output.sd / f64::MAX - 8.0_f64.sqrt() / 3.0).abs() < 1.0e-15);
 

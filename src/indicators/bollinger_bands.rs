@@ -20,19 +20,26 @@ pub struct BollingerBandsOutput {
 impl BollingerBands {
     /// Creates Bollinger Bands with a finite, non-negative standard deviation multiplier.
     pub fn new(period: usize, multiplier: f64) -> Result<Self> {
-        let sd = StandardDeviation::new(period)?;
+        if period < 1 {
+            return Err(InvalidRangeError {
+                param: Parameter::new("period", period),
+                range: Range::LowerBounded { min: 1 },
+            }
+            .into());
+        }
         if !multiplier.is_finite() || multiplier < 0.0 {
-            Err(InvalidRangeError {
+            return Err(InvalidRangeError {
                 param: Parameter::new("multiplier", multiplier),
                 range: Range::BothBounded {
                     min: 0.0,
                     max: f64::MAX,
                 },
             }
-            .into())
-        } else {
-            Ok(Self { sd, multiplier })
+            .into());
         }
+
+        let sd = StandardDeviation::new(period)?;
+        Ok(Self { sd, multiplier })
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
@@ -183,5 +190,21 @@ mod tests {
         assert_eq!(output.lower_bound, f64::NEG_INFINITY);
 
         Ok(())
+    }
+
+    #[test]
+    fn validates_multiplier_before_allocating_the_rolling_buffer() {
+        assert!(matches!(
+            BollingerBands::new(usize::MAX, f64::NAN),
+            Err(crate::Error::InvalidFloatRange(_))
+        ));
+        assert!(matches!(
+            BollingerBands::new(usize::MAX, -1.0),
+            Err(crate::Error::InvalidFloatRange(_))
+        ));
+        assert!(matches!(
+            BollingerBands::new(0, -1.0),
+            Err(crate::Error::InvalidUintRange(_))
+        ));
     }
 }

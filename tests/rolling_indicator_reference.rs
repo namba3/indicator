@@ -1,6 +1,6 @@
 use indicator::{
-    Current, Ema, IndicatorExt, Macd, Max, MaxIndex, Min, MinIndex, Next, Reset, Rma, Rsi, Sma,
-    StandardDeviation, Stochastics, Vwap, Vwma,
+    AroonIndicator, AroonOscillator, Current, Ema, IndicatorExt, Macd, Max, MaxIndex, Min,
+    MinIndex, Next, Reset, Rma, Rsi, Sma, StandardDeviation, Stochastics, Vwap, Vwma,
 };
 
 fn deterministic_inputs() -> Vec<f64> {
@@ -26,6 +26,64 @@ fn push_reference_window(window: &mut Vec<f64>, period: usize, input: f64) {
         window.remove(0);
         window.push(input);
     }
+}
+
+#[test]
+fn aroon_indicators_match_naive_references_across_long_sequences_and_reset() -> indicator::Result<()>
+{
+    const PERIOD: usize = 17;
+    let mut aroon = AroonIndicator::new(PERIOD)?;
+    let mut oscillator = AroonOscillator::new(PERIOD)?;
+    let mut window = Vec::with_capacity(PERIOD + 1);
+
+    for (position, input) in deterministic_inputs().into_iter().enumerate() {
+        if position == 257 {
+            aroon.reset();
+            oscillator.reset();
+            window.clear();
+        }
+
+        push_reference_window(&mut window, PERIOD + 1, input);
+        let highest = window.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let lowest = window.iter().copied().fold(f64::INFINITY, f64::min);
+        let max_index = window
+            .iter()
+            .rev()
+            .position(|value| *value == highest)
+            .unwrap();
+        let min_index = window
+            .iter()
+            .rev()
+            .position(|value| *value == lowest)
+            .unwrap();
+        let expected_up = (PERIOD - max_index) as f64 / PERIOD as f64;
+        let expected_down = (PERIOD - min_index) as f64 / PERIOD as f64;
+        let expected_oscillator = expected_up - expected_down;
+
+        let actual = aroon.next(input);
+        let actual_oscillator = oscillator.next(input);
+        assert!(
+            (actual.aroon_up - expected_up).abs() <= 1.0e-12,
+            "position {position}: Aroon up {}, expected {expected_up}",
+            actual.aroon_up
+        );
+        assert!(
+            (actual.aroon_down - expected_down).abs() <= 1.0e-12,
+            "position {position}: Aroon down {}, expected {expected_down}",
+            actual.aroon_down
+        );
+        assert!(
+            (actual_oscillator - expected_oscillator).abs() <= 1.0e-12,
+            "position {position}: Aroon oscillator {actual_oscillator}, expected {expected_oscillator}"
+        );
+        assert!((0.0..=1.0).contains(&actual.aroon_up));
+        assert!((0.0..=1.0).contains(&actual.aroon_down));
+        assert!((-1.0..=1.0).contains(&actual_oscillator));
+        assert_eq!(aroon.current(), Some(actual));
+        assert_eq!(oscillator.current(), Some(actual_oscillator));
+    }
+
+    Ok(())
 }
 
 #[test]

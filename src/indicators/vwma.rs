@@ -27,7 +27,19 @@ impl Vwma {
         }
     }
 
-    fn _next(&mut self, price: f64, volume: f64) -> <Self as Indicator>::Output {
+    /// Update the indicator and return `None` when the window has zero total volume.
+    ///
+    /// This accepts the same input forms as [`Next`]. The [`Next`] implementations
+    /// keep their `f64` output and return `NaN` while the result is undefined.
+    pub fn next_option<Input>(&mut self, input: Input) -> Option<f64>
+    where
+        Self: Next<Input>,
+    {
+        let _ = <Self as Next<Input>>::next(self, input);
+        self.current()
+    }
+
+    fn _next(&mut self, price: f64, volume: f64) -> Option<f64> {
         match &mut self.sum {
             Some((sum, total_volume)) => {
                 let (old_price, old_volume) = self.ring.pop_front().unwrap();
@@ -50,7 +62,7 @@ impl Vwma {
                     .into();
             }
         }
-        self.current().unwrap()
+        self.current()
     }
 }
 
@@ -59,17 +71,19 @@ impl Indicator for Vwma {
 }
 impl Current for Vwma {
     fn current(&self) -> Option<Self::Output> {
-        self.sum.map(|(sum, total_volume)| sum / total_volume)
+        self.sum
+            .and_then(|(sum, total_volume)| (total_volume != 0.0).then_some(sum / total_volume))
     }
 }
 impl Next<(f64, f64)> for Vwma {
     fn next(&mut self, (price, volume): (f64, f64)) -> Self::Output {
-        self._next(price, volume)
+        self._next(price, volume).unwrap_or(f64::NAN)
     }
 }
 impl<Input: Price + Volume> Next<&Input> for Vwma {
     fn next(&mut self, input: &Input) -> Self::Output {
         self._next(input.price(), input.volume())
+            .unwrap_or(f64::NAN)
     }
 }
 impl Reset for Vwma {
@@ -156,6 +170,25 @@ mod tests {
         assert_eq!(indicator.next((999.0, 0.0)), 100.0);
         assert_eq!(indicator.next((110.0, 1.0)), 105.0);
         assert_eq!(indicator.next((110.0, 1.0)), 110.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn zero_volume_window_is_undefined_until_volume_arrives() -> crate::Result<()> {
+        let mut indicator = Vwma::new(2)?;
+
+        assert_eq!(indicator.current(), None);
+        assert_eq!(indicator.next_option((100.0, 0.0)), None);
+        assert!(indicator.next((200.0, 0.0)).is_nan());
+        assert_eq!(indicator.current(), None);
+        assert_eq!(indicator.next_option((110.0, 1.0)), Some(110.0));
+        assert_eq!(indicator.next_option((120.0, 1.0)), Some(115.0));
+        assert_eq!(indicator.next_option((130.0, 0.0)), Some(120.0));
+        assert_eq!(indicator.next_option((140.0, 0.0)), None);
+        assert!(indicator.next((150.0, 0.0)).is_nan());
+        assert_eq!(indicator.next_option((160.0, 1.0)), Some(160.0));
+        assert_eq!(indicator.next_option(&TestItem(170.0, 1.0)), Some(165.0));
 
         Ok(())
     }

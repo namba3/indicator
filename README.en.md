@@ -108,6 +108,17 @@ assert_eq!(sma_window.next(102.0), vec![100.4, 100.8, 101.2]);
 assert_eq!(sma_window.next(102.0), vec![100.8, 101.2, 101.6]);
 ```
 
+### Handle zero-volume weighted averages
+
+`next_option` on VWAP and VWMA returns `None` while total volume is zero. The existing `Next` implementations keep their `f64` output and return `NaN` while the result is undefined.
+
+```rust
+let mut vwap = Vwap::new();
+
+assert_eq!(vwap.next_option((100.0, 0.0)), None);
+assert_eq!(vwap.next_option((110.0, 2.0)), Some(110.0));
+```
+
 ### Convert an indicator to an iterator
 
 Create an iterator of indicator outputs from an iterator of input values.

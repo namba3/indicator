@@ -14,17 +14,40 @@ impl Vwap {
         }
     }
 
-    fn _next(&mut self, price: f64, volume: f64) -> <Self as Indicator>::Output {
-        self.total_volume += volume;
-        match &mut self.current {
-            Some(current) => {
-                *current += (price - *current) * volume / self.total_volume;
-            }
-            None => {
-                self.current = price.into();
-            }
+    /// Update the indicator and return `None` until total volume is nonzero.
+    ///
+    /// This accepts the same input forms as [`Next`]. A zero-volume input does
+    /// not affect the accumulated average. The [`Next`] implementations keep
+    /// their `f64` output and return `NaN` while the result is undefined.
+    pub fn next_option<Input>(&mut self, input: Input) -> Option<f64>
+    where
+        Self: Next<Input>,
+    {
+        let _ = <Self as Next<Input>>::next(self, input);
+        self.current()
+    }
+
+    fn _next(&mut self, price: f64, volume: f64) -> Option<f64> {
+        if volume == 0.0 {
+            return self.current();
         }
-        self.current().unwrap()
+
+        let previous_total_volume = self.total_volume;
+        self.total_volume += volume;
+        if self.total_volume == 0.0 {
+            self.current = None;
+            return None;
+        }
+
+        if previous_total_volume == 0.0 {
+            self.current = Some(price);
+        } else if let Some(current) = &mut self.current {
+            *current += (price - *current) * volume / self.total_volume;
+        } else {
+            self.current = Some(price);
+        }
+
+        self.current()
     }
 }
 
@@ -33,17 +56,18 @@ impl Indicator for Vwap {
 }
 impl Current for Vwap {
     fn current(&self) -> Option<Self::Output> {
-        self.current
+        (self.total_volume != 0.0).then_some(self.current).flatten()
     }
 }
 impl Next<(f64, f64)> for Vwap {
     fn next(&mut self, (price, volume): (f64, f64)) -> Self::Output {
-        self._next(price, volume)
+        self._next(price, volume).unwrap_or(f64::NAN)
     }
 }
 impl<Input: Price + Volume> Next<&Input> for Vwap {
     fn next(&mut self, input: &Input) -> Self::Output {
         self._next(input.price(), input.volume())
+            .unwrap_or(f64::NAN)
     }
 }
 impl Reset for Vwap {
@@ -114,5 +138,18 @@ mod tests {
         assert_eq!(indicator.next((100.0, 2.0)), 100.0);
         assert_eq!(indicator.next((999.0, 0.0)), 100.0);
         assert_eq!(indicator.next((110.0, 2.0)), 105.0);
+    }
+
+    #[test]
+    fn zero_total_volume_is_undefined_until_positive_volume_arrives() {
+        let mut indicator = Vwap::new();
+
+        assert_eq!(indicator.current(), None);
+        assert_eq!(indicator.next_option((100.0, 0.0)), None);
+        assert!(indicator.next((100.0, 0.0)).is_nan());
+        assert_eq!(indicator.next_option((120.0, 0.0)), None);
+        assert_eq!(indicator.next_option((110.0, 2.0)), Some(110.0));
+        assert_eq!(indicator.next_option((999.0, 0.0)), Some(110.0));
+        assert_eq!(indicator.next_option(&TestItem(120.0, 2.0)), Some(115.0));
     }
 }

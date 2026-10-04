@@ -108,6 +108,17 @@ assert_eq!(sma_window.next(102.0), vec![100.4, 100.8, 101.2]);
 assert_eq!(sma_window.next(102.0), vec![100.8, 101.2, 101.6]);
 ```
 
+### 出来高 0 の加重平均を扱う
+
+VWAP と VWMA の `next_option` は、合計出来高が 0 の間 `None` を返します。既存の `Next` は `f64` の戻り値を保ち、計算結果が未定義の間は `NaN` を返します。
+
+```rust
+let mut vwap = Vwap::new();
+
+assert_eq!(vwap.next_option((100.0, 0.0)), None);
+assert_eq!(vwap.next_option((110.0, 2.0)), Some(110.0));
+```
+
 ### Iterator に変換する
 
 入力値の Iterator から、インジケーターの出力を生成する Iterator を作れます。

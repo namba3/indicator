@@ -1,5 +1,5 @@
 use indicator::{
-    Current, Ema, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Rma, Sma,
+    Current, Ema, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Rma, Rsi, Sma,
     StandardDeviation, Vwap, Vwma,
 };
 
@@ -63,6 +63,59 @@ fn ema_and_rma_match_scalar_references_across_long_sequences_and_reset() -> indi
         assert_eq!(rma.current(), Some(actual_rma));
         expected_ema = Some(next_expected_ema);
         expected_rma = Some(next_expected_rma);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn rsi_matches_gain_loss_reference_across_long_sequence_and_reset() -> indicator::Result<()> {
+    const PERIOD: usize = 14;
+    let inputs = deterministic_inputs();
+    let mut rsi = Rsi::new(PERIOD)?;
+    let mut previous_input: Option<f64> = None;
+    let mut average_gain: Option<f64> = None;
+    let mut average_loss: Option<f64> = None;
+
+    for (position, input) in inputs.into_iter().enumerate() {
+        if position == 257 {
+            rsi.reset();
+            previous_input = None;
+            average_gain = None;
+            average_loss = None;
+        }
+
+        let (gain, loss) = if let Some(previous_input) = previous_input {
+            let change = input - previous_input;
+            (change.max(0.0), (-change).max(0.0))
+        } else {
+            (0.0, 0.0)
+        };
+        let next_average_gain = average_gain.map_or(gain, |average| {
+            (average * (PERIOD - 1) as f64 + gain) / PERIOD as f64
+        });
+        let next_average_loss = average_loss.map_or(loss, |average| {
+            (average * (PERIOD - 1) as f64 + loss) / PERIOD as f64
+        });
+        let expected = match (next_average_gain, next_average_loss) {
+            (gain, loss) if gain <= 0.0 && loss <= 0.0 => 0.5,
+            (gain, _) if gain <= 0.0 => 0.0,
+            (_, loss) if loss <= 0.0 => 1.0,
+            (gain, loss) => gain / (gain + loss),
+        };
+
+        let actual = rsi.next(input);
+        let tolerance = 1.0e-12;
+        assert!(
+            (actual - expected).abs() <= tolerance,
+            "position {position}: RSI {actual}, expected {expected}, tolerance {tolerance}"
+        );
+        assert!((0.0..=1.0).contains(&actual));
+        assert_eq!(rsi.current(), Some(actual));
+
+        previous_input = Some(input);
+        average_gain = Some(next_average_gain);
+        average_loss = Some(next_average_loss);
     }
 
     Ok(())

@@ -41,8 +41,7 @@ impl StandardDeviation {
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         if let Some((mean, sse)) = self.mean_sse {
-            let old_input = self.ring.pop_front().unwrap();
-            self.ring.push_back(input);
+            let old_input = self.push_window(input);
 
             let delta = input - old_input;
             let new_mean = mean + delta / self.period as f64;
@@ -67,8 +66,7 @@ impl StandardDeviation {
                 self.recompute_scaled_mean_sse();
             }
         } else if let Some((scale, mean, sse, scale_count)) = self.scaled_mean_sse {
-            let old_input = self.ring.pop_front().unwrap();
-            self.ring.push_back(input);
+            let old_input = self.push_window(input);
 
             let old_is_scale = old_input.abs() == scale;
             let input_is_scale = input.abs() == scale;
@@ -100,22 +98,42 @@ impl StandardDeviation {
                 }
             }
         } else {
-            for _ in 0..self.period {
-                self.ring.push_back(input);
-            }
+            self.ring.push_back(input);
             self.mean_sse = (input, 0.0).into();
         }
         self.current().unwrap()
     }
 
+    fn push_window(&mut self, input: f64) -> f64 {
+        let old_input = if self.ring.len() < self.period {
+            *self.ring.front().unwrap()
+        } else {
+            self.ring.pop_front().unwrap()
+        };
+        self.ring.push_back(input);
+        old_input
+    }
+
+    fn window_values(&self) -> impl Iterator<Item = f64> + '_ {
+        let missing = self.period - self.ring.len();
+        self.ring
+            .front()
+            .copied()
+            .into_iter()
+            .flat_map(move |first| core::iter::repeat_n(first, missing))
+            .chain(self.ring.iter().copied())
+    }
+
     fn recompute_mean_sse(&mut self) {
         let origin = *self.ring.front().unwrap();
-        let mean_offset =
-            self.ring.iter().map(|value| value - origin).sum::<f64>() / self.period as f64;
+        let mean_offset = self
+            .window_values()
+            .map(|value| value - origin)
+            .sum::<f64>()
+            / self.period as f64;
         let mean = origin + mean_offset;
         let sse = self
-            .ring
-            .iter()
+            .window_values()
             .map(|value| {
                 let delta = value - mean;
                 delta * delta
@@ -131,33 +149,28 @@ impl StandardDeviation {
     }
 
     fn recompute_scaled_mean_sse(&mut self) {
-        if self.ring.iter().any(|value| !value.is_finite()) {
+        if self.window_values().any(|value| !value.is_finite()) {
             self.scaled_mean_sse = Some((f64::NAN, f64::NAN, f64::NAN, 0));
             return;
         }
 
-        let scale = self
-            .ring
-            .iter()
-            .map(|value| value.abs())
-            .fold(0.0, f64::max);
+        let scale = self.window_values().map(f64::abs).fold(0.0, f64::max);
         if scale == 0.0 {
             self.scaled_mean_sse = Some((0.0, 0.0, 0.0, self.period));
             return;
         }
 
-        let mean = self.ring.iter().map(|value| value / scale).sum::<f64>() / self.period as f64;
+        let mean =
+            self.window_values().map(|value| value / scale).sum::<f64>() / self.period as f64;
         let sse = self
-            .ring
-            .iter()
+            .window_values()
             .map(|value| {
                 let delta = value / scale - mean;
                 delta * delta
             })
             .sum();
         let scale_count = self
-            .ring
-            .iter()
+            .window_values()
             .filter(|value| value.abs() == scale)
             .count();
         self.scaled_mean_sse = Some((scale, mean, sse, scale_count));
@@ -282,6 +295,92 @@ mod tests {
                 }
             );
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn first_input_is_stored_once_while_statistics_include_virtual_padding() -> crate::Result<()> {
+        let mut indicator = StandardDeviation::new(3)?;
+
+        assert_eq!(
+            indicator.next(2.0),
+            StandardDeviationOutput { mean: 2.0, sd: 0.0 }
+        );
+        assert_eq!(indicator.ring.iter().copied().collect::<Vec<_>>(), [2.0]);
+
+        let second = indicator.next(4.0);
+        assert_eq!(second.mean, 2.0 + 2.0 / 3.0);
+        assert!((second.sd - 8.0_f64.sqrt() / 3.0).abs() < f64::EPSILON);
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [2.0, 4.0]
+        );
+
+        assert_eq!(
+            indicator.next(6.0),
+            StandardDeviationOutput {
+                mean: 4.0,
+                sd: (8.0_f64 / 3.0).sqrt(),
+            }
+        );
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [2.0, 4.0, 6.0]
+        );
+
+        assert_eq!(
+            indicator.next(8.0),
+            StandardDeviationOutput {
+                mean: 6.0,
+                sd: (8.0_f64 / 3.0).sqrt(),
+            }
+        );
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [4.0, 6.0, 8.0]
+        );
+
+        indicator.reset();
+        assert_eq!(
+            indicator.next(10.0),
+            StandardDeviationOutput {
+                mean: 10.0,
+                sd: 0.0
+            }
+        );
+        assert_eq!(indicator.ring.iter().copied().collect::<Vec<_>>(), [10.0]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn scaled_recomputation_counts_partial_window_padding() -> crate::Result<()> {
+        let mut indicator = StandardDeviation::new(3)?;
+        let _ = indicator.next(f64::MAX);
+        let output = indicator.next(-f64::MAX);
+
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [f64::MAX, -f64::MAX]
+        );
+        assert!((output.mean / f64::MAX - 1.0 / 3.0).abs() < 1.0e-15);
+        assert!((output.sd / f64::MAX - 8.0_f64.sqrt() / 3.0).abs() < 1.0e-15);
+
+        Ok(())
+    }
+
+    #[test]
+    fn nan_window_recovers_after_the_nan_leaves_a_partially_filled_window() -> crate::Result<()> {
+        let mut indicator = StandardDeviation::new(3)?;
+        assert!(indicator.next(f64::NAN).mean.is_nan());
+        assert!(indicator.next(5.0).mean.is_nan());
+        assert!(indicator.next(4.0).mean.is_nan());
+        assert!(indicator.next(3.0).mean.is_nan());
+
+        let output = indicator.next(2.0);
+        assert!((output.mean - 3.0).abs() < f64::EPSILON);
+        assert!((output.sd - (2.0_f64 / 3.0).sqrt()).abs() < f64::EPSILON);
 
         Ok(())
     }

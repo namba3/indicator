@@ -154,6 +154,18 @@ fn run_sma_first_input_benchmarks(iterations: usize) {
             sma.reset();
             sma.next(black_box(price_at(index)))
         });
+
+        let mut standard_deviation =
+            StandardDeviation::new(period).expect("valid standard deviation period");
+        run_benchmark(
+            &format!("StdDev/{period}/first-input"),
+            iterations,
+            |index| {
+                standard_deviation.reset();
+                let output = standard_deviation.next(black_box(price_at(index)));
+                output.mean + output.sd
+            },
+        );
     }
 }
 

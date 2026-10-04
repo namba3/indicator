@@ -69,7 +69,8 @@ impl<Inner: Indicator> Window<Inner> {
     ///
     /// Before the first input, and after `reset`, the iterator is empty. Once
     /// values are available, missing entries at the start repeat the first
-    /// output, matching the snapshots returned by [`Next::next`].
+    /// output, matching the snapshots returned by [`Next::next`]. The iterator
+    /// implements [`ExactSizeIterator`] and [`core::iter::FusedIterator`].
     pub fn iter(
         &self,
     ) -> impl ExactSizeIterator<Item = &Inner::Output> + core::iter::FusedIterator + '_ {

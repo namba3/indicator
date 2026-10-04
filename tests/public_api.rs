@@ -112,6 +112,31 @@ fn rolling_indicators_report_unallocatable_periods() {
     ));
 }
 
+#[test]
+fn window_iterator_exposes_exact_size_and_fused_guarantees() -> indicator::Result<()> {
+    fn assert_iterator_traits<I: ExactSizeIterator + core::iter::FusedIterator>(_: &I) {}
+
+    let mut window = indicator::Sma::new(1)?.window(3);
+    assert_iterator_traits(&window.iter());
+    assert_eq!(window.iter().len(), 0);
+
+    window.next(5.0);
+    let mut iter = window.iter();
+    assert_eq!(iter.len(), 3);
+    assert_eq!(iter.next(), Some(&5.0));
+    assert_eq!(iter.len(), 2);
+    assert_eq!(iter.collect::<Vec<_>>(), [&5.0, &5.0]);
+
+    window.next(8.0);
+    assert_eq!(window.iter().len(), 3);
+    assert_eq!(window.iter().copied().collect::<Vec<_>>(), [5.0, 5.0, 8.0]);
+
+    window.reset();
+    assert_eq!(window.iter().len(), 0);
+
+    Ok(())
+}
+
 #[derive(Clone)]
 struct Trade {
     price: f64,

@@ -1,74 +1,11 @@
+use crate::padded_iterator::PaddedIterator;
 use alloc::collections::VecDeque;
-
-struct PaddedWindowIter<T, Values> {
-    padding_value: Option<T>,
-    padding_remaining: usize,
-    padding_before_values: bool,
-    values: Values,
-}
-
-impl<T: Copy, Values> Iterator for PaddedWindowIter<T, Values>
-where
-    Values: ExactSizeIterator<Item = T>,
-{
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.padding_before_values && 0 < self.padding_remaining {
-            self.padding_remaining -= 1;
-            return self.padding_value;
-        }
-
-        if let Some(value) = self.values.next() {
-            return Some(value);
-        }
-
-        if 0 < self.padding_remaining {
-            self.padding_remaining -= 1;
-            return self.padding_value;
-        }
-
-        None
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.padding_remaining + self.values.len();
-        (len, Some(len))
-    }
-}
-
-impl<T: Copy, Values> ExactSizeIterator for PaddedWindowIter<T, Values> where
-    Values: ExactSizeIterator<Item = T>
-{
-}
-
-impl<T: Copy, Values> core::iter::FusedIterator for PaddedWindowIter<T, Values> where
-    Values: ExactSizeIterator<Item = T> + core::iter::FusedIterator
-{
-}
-
-fn padded_window<T: Copy, Values>(
-    values: Values,
-    padding_value: Option<T>,
-    missing: usize,
-    padding_before_values: bool,
-) -> PaddedWindowIter<T, Values>
-where
-    Values: ExactSizeIterator<Item = T>,
-{
-    PaddedWindowIter {
-        padding_value,
-        padding_remaining: if padding_value.is_some() { missing } else { 0 },
-        padding_before_values,
-        values,
-    }
-}
 
 pub(super) fn values<T: Copy>(
     ring: &VecDeque<T>,
     period: usize,
 ) -> impl ExactSizeIterator<Item = T> + core::iter::FusedIterator + '_ {
-    padded_window(
+    PaddedIterator::new(
         ring.iter().copied(),
         ring.front().copied(),
         period - ring.len(),
@@ -80,7 +17,7 @@ pub(super) fn newest_first<T: Copy>(
     ring: &VecDeque<T>,
     period: usize,
 ) -> impl ExactSizeIterator<Item = T> + core::iter::FusedIterator + '_ {
-    padded_window(
+    PaddedIterator::new(
         ring.iter().copied(),
         ring.back().copied(),
         period - ring.len(),
@@ -92,7 +29,7 @@ pub(super) fn oldest_first_from_newest<T: Copy>(
     ring: &VecDeque<T>,
     period: usize,
 ) -> impl ExactSizeIterator<Item = T> + core::iter::FusedIterator + '_ {
-    padded_window(
+    PaddedIterator::new(
         ring.iter().rev().copied(),
         ring.back().copied(),
         period - ring.len(),

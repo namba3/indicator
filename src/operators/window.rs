@@ -1,43 +1,9 @@
 use alloc::{collections::VecDeque, vec::Vec};
 
-use crate::{Current, Indicator, Next, Reset, Result, try_deque_with_capacity};
-
-struct WindowIter<'a, T, Values> {
-    first: Option<&'a T>,
-    padding_remaining: usize,
-    values: Values,
-}
-
-impl<'a, T, Values> Iterator for WindowIter<'a, T, Values>
-where
-    Values: ExactSizeIterator<Item = &'a T>,
-{
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if 0 < self.padding_remaining {
-            self.padding_remaining -= 1;
-            self.first
-        } else {
-            self.values.next()
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.padding_remaining + self.values.len();
-        (len, Some(len))
-    }
-}
-
-impl<'a, T, Values> ExactSizeIterator for WindowIter<'a, T, Values> where
-    Values: ExactSizeIterator<Item = &'a T>
-{
-}
-
-impl<'a, T, Values> core::iter::FusedIterator for WindowIter<'a, T, Values> where
-    Values: ExactSizeIterator<Item = &'a T> + core::iter::FusedIterator
-{
-}
+use crate::{
+    Current, Indicator, Next, Reset, Result, padded_iterator::PaddedIterator,
+    try_deque_with_capacity,
+};
 
 /// Create a new indicator that outputs the past N output values ​​of the inner indicator.
 pub struct Window<Inner: Indicator> {
@@ -81,11 +47,7 @@ impl<Inner: Indicator> Window<Inner> {
             0
         };
 
-        WindowIter {
-            first,
-            padding_remaining,
-            values: self.ring.iter(),
-        }
+        PaddedIterator::new(self.ring.iter(), first, padding_remaining, true)
     }
 
     /// Advance the inner indicator without creating an owned window snapshot.

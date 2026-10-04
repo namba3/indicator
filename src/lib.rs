@@ -48,6 +48,7 @@ pub mod indicators;
 
 pub mod indicator_iterator;
 pub mod operators;
+mod padded_iterator;
 
 #[cfg(feature = "stream")]
 pub mod indicator_stream;

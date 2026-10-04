@@ -3,6 +3,9 @@ name = "indicator"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
+description = "A no_std-compatible Rust library for technical analysis indicators."
+readme = "README.md"
+repository = "https://github.com/namba3/indicator"
 
 [[example]]
 name = "basic"

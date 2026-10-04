@@ -39,5 +39,8 @@ jobs:
       - name: Check no_std build
         run: cargo +${{ matrix.rust }} check --locked --no-default-features
 
+      - name: Check no_std stream build
+        run: cargo +${{ matrix.rust }} check --locked --no-default-features --features stream
+
       - name: Compile benchmark
         run: cargo +${{ matrix.rust }} bench --locked --bench indicators --no-run

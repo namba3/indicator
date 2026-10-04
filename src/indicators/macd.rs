@@ -15,7 +15,7 @@ impl Macd {
     pub const DEFAULT_SIGNAL_PERIOD: usize = 9;
 
     pub fn new(short_period: usize, long_period: usize, signal_period: usize) -> Result<Self> {
-        if !(short_period < long_period) {
+        if short_period >= long_period {
             return Err(InvalidBinaryRelationError {
                 operator: "<",
                 lhs: Parameter::new("short_period", short_period),
@@ -95,9 +95,9 @@ impl From<(f64, f64, f64)> for MacdOutput {
         }
     }
 }
-impl Into<(f64, f64, f64)> for MacdOutput {
-    fn into(self) -> (f64, f64, f64) {
-        (self.macd, self.signal, self.histogram)
+impl From<MacdOutput> for (f64, f64, f64) {
+    fn from(output: MacdOutput) -> Self {
+        (output.macd, output.signal, output.histogram)
     }
 }
 

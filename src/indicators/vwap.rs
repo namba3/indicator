@@ -79,6 +79,12 @@ impl Vwap {
     }
 }
 
+impl Default for Vwap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Indicator for Vwap {
     type Output = f64;
 }

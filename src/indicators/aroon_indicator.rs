@@ -103,9 +103,9 @@ impl From<(f64, f64)> for AroonIndicatorOutput {
         }
     }
 }
-impl Into<(f64, f64)> for AroonIndicatorOutput {
-    fn into(self) -> (f64, f64) {
-        (self.aroon_up, self.aroon_down)
+impl From<AroonIndicatorOutput> for (f64, f64) {
+    fn from(output: AroonIndicatorOutput) -> Self {
+        (output.aroon_up, output.aroon_down)
     }
 }
 

@@ -6,6 +6,11 @@ impl<T: Clone> Identity<T> {
         Identity(None)
     }
 }
+impl<T: Clone> Default for Identity<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl<T: Clone> Indicator for Identity<T> {
     type Output = T;
 }

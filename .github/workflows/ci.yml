@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        run: rustup toolchain install "${{ matrix.rust }}" --profile minimal --component rustfmt
+        run: rustup toolchain install "${{ matrix.rust }}" --profile minimal --component rustfmt --component clippy
 
       - name: Check formatting
         run: cargo +${{ matrix.rust }} fmt --check
@@ -41,6 +41,9 @@ jobs:
 
       - name: Check no_std stream build
         run: cargo +${{ matrix.rust }} check --locked --no-default-features --features stream
+
+      - name: Run Clippy
+        run: cargo +${{ matrix.rust }} clippy --locked --all-targets --all-features -- -D warnings
 
       - name: Compile benchmark
         run: cargo +${{ matrix.rust }} bench --locked --bench indicators --no-run

@@ -31,10 +31,7 @@ impl BolingerBands {
             }
             .into())
         } else {
-            Ok(Self {
-                sd,
-                multiplier: multiplier as f64,
-            })
+            Ok(Self { sd, multiplier })
         }
     }
 

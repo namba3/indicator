@@ -1,6 +1,6 @@
 use crate::{Current, Indicator, Next, Reset};
 
-///
+/// Hides outputs until the configured number of input values has passed.
 pub struct Mature<I: Indicator> {
     i: I,
     period: usize,

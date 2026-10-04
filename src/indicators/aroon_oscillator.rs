@@ -3,7 +3,7 @@ use crate::{AroonIndicator, Current, Indicator, Next, Price, Reset, Result};
 /// Aroon Oscillator
 /// ///
 /// Range in \[-1.0, 1.0\]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AroonOscillator {
     aroon_indicator: AroonIndicator,
 }
@@ -18,13 +18,6 @@ impl AroonOscillator {
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
         let _ = self.aroon_indicator.next(input);
         self.current().unwrap()
-    }
-}
-impl Default for AroonOscillator {
-    fn default() -> Self {
-        Self {
-            aroon_indicator: Default::default(),
-        }
     }
 }
 impl Indicator for AroonOscillator {

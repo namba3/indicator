@@ -17,7 +17,7 @@ impl Stochastics {
     pub const DEFAULT_M_PERIOD: usize = 3;
     pub const DEFAULT_X_PERIOD: usize = 3;
 
-    ///
+    /// Creates Stochastics with lookback and smoothing periods.
     pub fn new(n_period: usize, m_period: usize, x_period: usize) -> Result<Self> {
         let min = Min::new(n_period)?;
         let max = Max::new(n_period)?;
@@ -122,9 +122,9 @@ impl From<(f64, f64, f64)> for StochasticsOutput {
         Self { k, d, slow_d }
     }
 }
-impl Into<(f64, f64, f64)> for StochasticsOutput {
-    fn into(self) -> (f64, f64, f64) {
-        (self.k, self.d, self.slow_d)
+impl From<StochasticsOutput> for (f64, f64, f64) {
+    fn from(output: StochasticsOutput) -> Self {
+        (output.k, output.d, output.slow_d)
     }
 }
 

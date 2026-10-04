@@ -55,6 +55,24 @@ fn main() {
 - VWAP: Volume Weighted Average Price
 - VWMA: Volume Weighted Moving Average
 
+## Initialization and Warm-up
+
+Unless noted below, `next` returns a value starting with the first input; indicators do not wait for a full period of samples. The table describes initialization and output ranges for period-based indicators.
+
+| Indicator | Initialization and first output | Output range or behavior |
+| --- | --- | --- |
+| SMA, Standard Deviation, Bollinger Bands, Max, Min | The first input fills the entire window, so output starts immediately. | SMA, mean, and extrema use the input scale. Standard deviation is non-negative; Bollinger Bands satisfy `lower_bound <= average <= upper_bound`. |
+| Max Index, Min Index | The first input fills the entire window, so output starts immediately. | Number of samples since the extreme, in `0..period` (excluding `period`). |
+| EMA, RMA | The first input is the initial value, and output starts immediately. EMA updates with coefficient `2 / (period + 1)`; RMA uses `1 / period`. | Same scale as the input. |
+| RSI | The first change is treated as 0, so the first output is `0.5`. | `0..=1`. |
+| MACD | The short and long EMAs start from the first input, so MACD, Signal, and Histogram are all `0` on the first input. | No fixed range. |
+| Stochastics | `%K`, `%D`, and `Slow %D` are all `0.5` on the first input. A zero denominator also uses `0.5`. | All three outputs are in `0..=1`. |
+| Aroon Indicator, Aroon Oscillator | The first input fills the window, so output starts immediately. Aroon Up/Down start at `1`; the Oscillator starts at `0`. | Aroon Up/Down are in `0..=1`; the Oscillator is in `-1..=1`. |
+| VWAP | A value is available after cumulative volume first becomes positive. Until then, `current()` and `next_option()` return `None`, while ordinary `next()` returns `NaN`. | Weighted average of prices with positive volume. |
+| VWMA | The first price-volume pair fills the window. A value is available once the window's total volume is positive. | Weighted average of prices with positive volume in the window. |
+
+Using `mature(n)` hides the first `n` outputs as `None` and returns values starting with output `n + 1`. It delays when outputs are exposed; it does not change the indicator's own initialization rule.
+
 ## Features
 
 ### Transform indicator output

@@ -55,6 +55,24 @@ fn main() {
 - VWAP: Volume Weighted Average Price
 - VWMA: Volume Weighted Moving Average
 
+## 初期値とウォームアップ
+
+特に記載がない指標は、最初の入力から `next` が値を返します。期間分の入力がそろうまで待つ挙動ではありません。期間を指定する指標の初期化と出力範囲は次のとおりです。
+
+| 指標 | 初期化と最初の出力 | 出力範囲・性質 |
+| --- | --- | --- |
+| SMA、Standard Deviation、Bollinger Bands、Max、Min | 最初の入力を窓全体に複製し、初回から出力します。 | SMA・平均・極値は入力と同じ尺度です。標準偏差は 0 以上、Bollinger Bands は `lower_bound <= average <= upper_bound` です。 |
+| Max Index、Min Index | 最初の入力を窓全体に複製し、初回から出力します。 | 極値からの経過サンプル数で、`0..period`（`period` は含みません）です。 |
+| EMA、RMA | 最初の入力を初期値にし、初回から出力します。EMA は `2 / (period + 1)`、RMA は `1 / period` の係数で更新します。 | 入力と同じ尺度です。 |
+| RSI | 初回の変化量を 0 として扱い、初回は `0.5` を返します。 | `0..=1` です。 |
+| MACD | 短期・長期 EMA は最初の入力から始まるため、初回は MACD、Signal、Histogram がすべて `0` です。 | 固定範囲はありません。 |
+| Stochastics | 初回は `%K`、`%D`、`Slow %D` がすべて `0.5` です。分母が 0 の場合も `0.5` を使います。 | 3つとも `0..=1` です。 |
+| Aroon Indicator、Aroon Oscillator | 初回入力で窓を埋め、初回から出力します。Aroon Up/Down は初回 `1`、Oscillator は初回 `0` です。 | Aroon Up/Down は `0..=1`、Oscillator は `-1..=1` です。 |
+| VWAP | 累積出来高が初めて正になった入力から値を返します。正の出来高がない間、`current()` と `next_option()` は `None`、通常の `next()` は `NaN` です。 | 正の出来高を持つ価格の加重平均です。 |
+| VWMA | 最初の価格・出来高の組を窓全体に複製します。窓内の合計出来高が正になった時点から値を返します。 | 窓内で正の出来高を持つ価格の加重平均です。 |
+
+`mature(n)` を組み合わせると、先頭の `n` 個の出力を `None` にし、`n + 1` 個目から値を返せます。指標本体の初期化規則は変わらず、出力を見せ始める時点だけが遅れます。
+
 ## 機能
 
 ### インジケーターの出力を変換する

@@ -6,6 +6,10 @@ use alloc::collections::VecDeque;
 pub struct MinIndex {
     period: usize,
     ring: VecDeque<f64>,
+    candidates: VecDeque<(usize, f64)>,
+    position: usize,
+    nan_count: usize,
+    fast_path: bool,
     current: Option<usize>,
 }
 impl MinIndex {
@@ -20,41 +24,95 @@ impl MinIndex {
             Ok(Self {
                 period,
                 ring: VecDeque::with_capacity(period),
+                candidates: VecDeque::with_capacity(period),
+                position: 0,
+                nan_count: 0,
+                fast_path: true,
                 current: None,
             })
         }
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
-        match &mut self.current {
-            Some(min_index) => {
-                let min = self.ring[*min_index];
-
-                let old_value = self.ring.pop_back().unwrap();
+        if self.current.is_none() {
+            for _ in 0..self.period {
                 self.ring.push_front(input);
-
-                match min {
-                    min if input <= min => *min_index = 0,
-                    min if min == old_value => {
-                        let mut latest_min_index = 0;
-                        for (index, value) in self.ring.iter().enumerate().skip(1) {
-                            if *value < self.ring[latest_min_index] {
-                                latest_min_index = index;
-                            }
-                        }
-                        *min_index = latest_min_index;
-                    }
-                    _ => *min_index += 1,
-                }
             }
-            None => {
-                for _ in 0..self.period {
-                    self.ring.push_back(input);
+            self.position = self.period - 1;
+            self.nan_count = if input.is_nan() { self.period } else { 0 };
+            self.fast_path = self.nan_count == 0;
+            self.candidates.clear();
+            if self.fast_path {
+                self.candidates.push_back((self.position, input));
+            }
+            self.current = Some(0);
+            return 0;
+        }
+
+        self.position += 1;
+        let old_index = self.current.unwrap().min(self.period - 1);
+        let old_min = self.ring[old_index];
+        let old_value = self.ring.pop_back().unwrap();
+        self.ring.push_front(input);
+        self.nan_count -= usize::from(old_value.is_nan());
+        self.nan_count += usize::from(input.is_nan());
+
+        if self.fast_path && self.nan_count == 0 {
+            while self
+                .candidates
+                .front()
+                .is_some_and(|(position, _)| self.position - position >= self.period)
+            {
+                self.candidates.pop_front();
+            }
+            while self
+                .candidates
+                .back()
+                .is_some_and(|(_, value)| *value >= input)
+            {
+                self.candidates.pop_back();
+            }
+            self.candidates.push_back((self.position, input));
+            self.current = Some(self.position - self.candidates.front().unwrap().0);
+        } else {
+            let min_index = if input <= old_min {
+                0
+            } else if old_min == old_value {
+                let mut latest_min_index = 0;
+                for (index, value) in self.ring.iter().enumerate().skip(1) {
+                    if *value < self.ring[latest_min_index] {
+                        latest_min_index = index;
+                    }
                 }
-                self.current = 0.into();
+                latest_min_index
+            } else {
+                old_index.saturating_add(1).min(self.period - 1)
+            };
+            self.current = Some(min_index);
+
+            if self.nan_count == 0 {
+                self.rebuild_candidates();
+                self.fast_path = true;
             }
         }
-        self.current().unwrap()
+        self.current.unwrap()
+    }
+
+    fn rebuild_candidates(&mut self) {
+        self.candidates.clear();
+        let oldest_position = self.position - (self.period - 1);
+        for (offset, value) in self.ring.iter().rev().copied().enumerate() {
+            let position = oldest_position + offset;
+            while self
+                .candidates
+                .back()
+                .is_some_and(|(_, candidate)| *candidate >= value)
+            {
+                self.candidates.pop_back();
+            }
+            self.candidates.push_back((position, value));
+        }
+        self.current = Some(self.position - self.candidates.front().unwrap().0);
     }
 }
 
@@ -80,6 +138,10 @@ impl<Input: Price> Next<&Input> for MinIndex {
 impl Reset for MinIndex {
     fn reset(&mut self) {
         self.ring.clear();
+        self.candidates.clear();
+        self.position = 0;
+        self.nan_count = 0;
+        self.fast_path = true;
         self.current = None;
     }
 }
@@ -149,6 +211,17 @@ mod tests {
                 .rev()
                 .position(|value| *value == minimum)
                 .unwrap();
+            assert_eq!(indicator.next(input), expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn nan_values_do_not_panic_and_extrema_recover_after_expiry() -> crate::Result<()> {
+        let mut indicator = MinIndex::new(3)?;
+
+        for (input, expected) in [(f64::NAN, 0), (1.0, 1), (2.0, 2), (0.0, 0), (3.0, 1)] {
             assert_eq!(indicator.next(input), expected);
         }
 

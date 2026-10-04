@@ -33,10 +33,9 @@ where
 {
     type Item = Inner::Output;
     fn next(&mut self) -> Option<<Self as Iterator>::Item> {
-        if let Some(input) = self.input_iterator.next() {
-            Some(self.inner.next(input))
-        } else {
-            None
+        match self.input_iterator.next() {
+            Some(input) => Some(self.inner.next(input)),
+            _ => None,
         }
     }
 }
@@ -44,8 +43,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helper::*;
     use crate::Sma;
+    use crate::test_helper::*;
 
     #[test]
     fn test() -> crate::Result<()> {

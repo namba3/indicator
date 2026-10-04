@@ -55,11 +55,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helper::*;
     use crate::Sma;
+    use crate::test_helper::*;
     use futures_executor::LocalPool;
     use futures_util::task::SpawnExt;
-    use futures_util::{stream, StreamExt};
+    use futures_util::{StreamExt, stream};
 
     #[test]
     fn test() -> core::result::Result<(), Box<dyn std::error::Error>> {

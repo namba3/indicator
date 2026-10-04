@@ -1,18 +1,18 @@
-use once_cell::sync::Lazy as SyncLazy;
-use rand::Rng;
+use rand::RngExt;
+use std::sync::LazyLock as SyncLazy;
 
 use crate::{Candlestick, Close, High, Low, Open, Price, Volume};
 
 const SIZE: usize = 10000;
 pub static RANDOM_DATA: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
     let mut v = Vec::with_capacity(SIZE);
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     for _ in 0..SIZE {
-        let value = rng.gen_range(90.0..=100.0);
-        let high = value * rng.gen_range(1.0..=1.1);
-        let low = value * rng.gen_range(0.9..=1.0);
+        let value = rng.random_range(90.0..=100.0);
+        let high = value * rng.random_range(1.0..=1.1);
+        let low = value * rng.random_range(0.9..=1.0);
 
-        let (open, close) = match rng.gen_range(0..=5) {
+        let (open, close) = match rng.random_range(0..=5) {
             0 => (high, value),
             1 => (high, low),
             2 => (value, high),
@@ -22,7 +22,7 @@ pub static RANDOM_DATA: SyncLazy<Box<[TestItem]>> = SyncLazy::new(|| {
             _ => unreachable!(),
         };
 
-        let volume = rng.gen_range(1.0..=100.0);
+        let volume = rng.random_range(1.0..=100.0);
 
         v.push(TestItem {
             high,
@@ -96,9 +96,9 @@ impl<T: Round> Round for Option<T> {
 
 macro_rules! test_indicator {
     {
-        new: $new:expr,
-        inputs: $inputs:expr,
-        outputs: $outputs:expr$(,)?
+        new: $new:expr_2021,
+        inputs: $inputs:expr_2021,
+        outputs: $outputs:expr_2021$(,)?
     } => {
         test_next! {
             new: $new,
@@ -107,14 +107,14 @@ macro_rules! test_indicator {
         }
     };
     {
-        new: $new:expr,
-        inputs: $inputs:expr,
-        outputs: $outputs:expr,
+        new: $new:expr_2021,
+        inputs: $inputs:expr_2021,
+        outputs: $outputs:expr_2021,
         additional_tests: {
             $(
                 $test_name:ident $(: {
                     $(
-                        $prop:ident $(: $value:expr)?,
+                        $prop:ident $(: $value:expr_2021)?,
                     )*
                 })?,
             )*
@@ -132,9 +132,9 @@ macro_rules! test_indicator {
 
 macro_rules! test_next {
     {
-        new: $new:expr,
-        inputs: $inputs:expr,
-        outputs: $outputs:expr,
+        new: $new:expr_2021,
+        inputs: $inputs:expr_2021,
+        outputs: $outputs:expr_2021,
     } => {
         #[test]
         fn next() -> crate::Result<()> {
@@ -158,39 +158,39 @@ macro_rules! test_next {
 }
 
 macro_rules! additional_test {
-    ($new:expr, current, {
-        inputs: $inputs:expr
+    ($new:expr_2021, current, {
+        inputs: $inputs:expr_2021
     }) => {
         test_current! {
             new: $new,
             inputs: $inputs,
         }
     };
-    ($new:expr, reset, {
-        inputs: $inputs:expr
+    ($new:expr_2021, reset, {
+        inputs: $inputs:expr_2021
     }) => {
         test_reset! {
             new: $new,
             inputs: $inputs,
         }
     };
-    ($_new:expr, new_invalid_parameter, {
-        new: $new:expr
+    ($_new:expr_2021, new_invalid_parameter, {
+        new: $new:expr_2021
     }) => {
         test_new_invalid_parameter! {
             new: $new
         }
     };
-    ($_new:expr, new_invalid_parameter, {
-        news: $news:expr
+    ($_new:expr_2021, new_invalid_parameter, {
+        news: $news:expr_2021
     }) => {
         test_new_invalid_parameter! {
             news: $news
         }
     };
-    ($new:expr, next_ext, {
-        inputs: $inputs:expr,
-        outputs: $outputs:expr
+    ($new:expr_2021, next_ext, {
+        inputs: $inputs:expr_2021,
+        outputs: $outputs:expr_2021
     }) => {
         test_next_ext! {
             new: $new,
@@ -202,9 +202,9 @@ macro_rules! additional_test {
 
 macro_rules! test_next_ext {
     {
-        new: $new:expr,
-        inputs: $inputs:expr,
-        outputs: $outputs:expr,
+        new: $new:expr_2021,
+        inputs: $inputs:expr_2021,
+        outputs: $outputs:expr_2021,
     } => {
         #[test]
         fn next_ext() -> crate::Result<()> {
@@ -229,8 +229,8 @@ macro_rules! test_next_ext {
 
 macro_rules! test_reset {
     {
-        new: $new:expr,
-        inputs: $inputs:expr,
+        new: $new:expr_2021,
+        inputs: $inputs:expr_2021,
     } => {
         #[test]
         fn reset() -> crate::Result<()> {
@@ -259,13 +259,13 @@ macro_rules! test_reset {
 }
 
 macro_rules! test_new_invalid_parameter {
-    { new: $new:expr} => {
+    { new: $new:expr_2021} => {
         #[test]
         fn new_invalid_parameter() {
             assert!($new.is_err());
         }
     };
-    { news: $news:expr} => {
+    { news: $news:expr_2021} => {
         #[test]
         fn new_invalid_parameter() {
             let news: &[crate::Result<_>] = &$news;
@@ -278,8 +278,8 @@ macro_rules! test_new_invalid_parameter {
 
 macro_rules! test_current {
     {
-        new: $new:expr,
-        inputs: $inputs:expr,
+        new: $new:expr_2021,
+        inputs: $inputs:expr_2021,
     } => {
         #[test]
         fn current() -> crate::Result<()> {

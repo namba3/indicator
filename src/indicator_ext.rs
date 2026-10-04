@@ -1,7 +1,7 @@
 use crate::{
+    Indicator, Next,
     indicator_iterator::IndicatorIterator,
     operators::{Composition, Map, Mature, Together, Window},
-    Indicator, Next,
 };
 
 /// Provides extended methods for Indicator.

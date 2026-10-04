@@ -67,8 +67,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_helper::*, Ema, Price, Sma};
-    use once_cell::sync::Lazy as SyncLazy;
+    use crate::{Ema, Price, Sma, test_helper::*};
+    use std::sync::LazyLock as SyncLazy;
 
     impl Round for (f64, f64) {
         fn round(self) -> Self {

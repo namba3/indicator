@@ -63,7 +63,7 @@ impl Current for StandardDeviation {
         if let Some((mean, sse)) = self.mean_sse {
             Self::Output {
                 mean,
-                sd: (sse / self.period as f64).sqrt(),
+                sd: libm::sqrt(sse / self.period as f64),
             }
             .into()
         } else {
@@ -92,7 +92,7 @@ impl Reset for StandardDeviation {
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use once_cell::sync::Lazy as SyncLazy;
+    use std::sync::LazyLock as SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);

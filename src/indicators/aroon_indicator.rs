@@ -107,7 +107,7 @@ impl Into<(f64, f64)> for AroonIndicatorOutput {
 mod tests {
     use super::*;
     use crate::test_helper::*;
-    use once_cell::sync::Lazy as SyncLazy;
+    use std::sync::LazyLock as SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);

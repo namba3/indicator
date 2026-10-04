@@ -17,8 +17,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(dead_code)]
-#![cfg_attr(test, feature(once_cell))]
-
 extern crate alloc;
 
 #[cfg(test)]

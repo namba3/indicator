@@ -1,9 +1,8 @@
-cargo-features = ["profile-rustflags"]
-
 [package]
 name = "indicator"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 
 [[example]]
 name = "basic"
@@ -12,13 +11,13 @@ path = "./example/basic.rs"
 [features]
 default = ["std"]
 std = []
-stream = ["futures-core"]
+stream = ["dep:futures-core"]
 
 [dependencies]
-futures-core = { version = "0.3", optional = true }
+futures-core = { version = "0.3.34", optional = true }
+libm = "0.2.16"
 
 [dev-dependencies]
-rand = "0.8"
-futures-executor = "0.3"
-futures-util = "0.3"
-once_cell = "1.16.0"
+rand = "0.10.3"
+futures-executor = "0.3.34"
+futures-util = "0.3.34"

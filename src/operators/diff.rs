@@ -73,8 +73,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{operators::Identity, test_helper::*, High, Low};
-    use once_cell::sync::Lazy as SyncLazy;
+    use crate::{High, Low, operators::Identity, test_helper::*};
+    use std::sync::LazyLock as SyncLazy;
 
     static INPUTS: &[(f64, f64)] = &[
         (0.0, 0.0),

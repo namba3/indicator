@@ -61,7 +61,7 @@ impl Reset for Ema {
 
 #[cfg(test)]
 mod tests {
-    use once_cell::sync::Lazy as SyncLazy;
+    use std::sync::LazyLock as SyncLazy;
 
     use super::*;
     use crate::test_helper::*;

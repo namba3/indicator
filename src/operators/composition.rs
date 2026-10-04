@@ -62,9 +62,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_helper::*, Rsi};
     use crate::{Price, Sma};
-    use once_cell::sync::Lazy as SyncLazy;
+    use crate::{Rsi, test_helper::*};
+    use std::sync::LazyLock as SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);

@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use alloc::{boxed::Box, collections::VecDeque, vec};
 
 use crate::{Current, Indicator, Next, Reset};
 
@@ -118,7 +118,7 @@ mod tests {
     use super::*;
     use crate::test_helper::*;
     use crate::{Price, Sma};
-    use once_cell::sync::Lazy as SyncLazy;
+    use std::sync::LazyLock as SyncLazy;
 
     #[derive(Clone)]
     struct TestItem(f64);

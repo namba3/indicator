@@ -81,10 +81,10 @@ impl Reset for Vwma {
 
 #[cfg(test)]
 mod tests {
-    use once_cell::sync::Lazy as SyncLazy;
+    use std::sync::LazyLock as SyncLazy;
 
     use super::*;
-    use crate::{test_helper::*, Volume};
+    use crate::{Volume, test_helper::*};
 
     #[derive(Clone)]
     struct TestItem(f64, f64);

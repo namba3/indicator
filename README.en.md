@@ -127,11 +127,14 @@ assert_eq!(sma_window.next(102.0), vec![100.8, 101.2, 101.6]);
 
 `next_option` on VWAP and VWMA returns `None` while total volume is zero. The existing `Next` implementations keep their `f64` output and return `NaN` while the result is undefined.
 
+Negative, NaN, and infinite volumes are invalid. Use `try_next` with tuple input or `try_next_ref` with a reference to a type implementing `Price` and `Volume`; these return an `InvalidVolume` error without changing indicator state. The existing `Next` implementations keep their return type, ignore invalid volumes, and return the current value. Use a fallible method when validating external data.
+
 ```rust
 let mut vwap = Vwap::new();
 
 assert_eq!(vwap.next_option((100.0, 0.0)), None);
 assert_eq!(vwap.next_option((110.0, 2.0)), Some(110.0));
+assert!(vwap.try_next((120.0, -1.0)).is_err());
 ```
 
 ### Convert an indicator to an iterator

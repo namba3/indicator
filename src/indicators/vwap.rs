@@ -1,4 +1,4 @@
-use crate::{Current, Indicator, Next, Price, Reset, Volume};
+use crate::{Current, Indicator, InvalidVolumeError, Next, Price, Reset, Result, Volume};
 
 /// Volume Weighted Average Price
 #[derive(Debug, Clone)]
@@ -18,7 +18,9 @@ impl Vwap {
     ///
     /// This accepts the same input forms as [`Next`]. A zero-volume input does
     /// not affect the accumulated average. The [`Next`] implementations keep
-    /// their `f64` output and return `NaN` while the result is undefined.
+    /// their `f64` output and return `NaN` while the result is undefined. Use
+    /// [`try_next`](Self::try_next) or [`try_next_ref`](Self::try_next_ref) to
+    /// detect and reject negative or non-finite volumes.
     pub fn next_option<Input>(&mut self, input: Input) -> Option<f64>
     where
         Self: Next<Input>,
@@ -27,16 +29,37 @@ impl Vwap {
         self.current()
     }
 
+    /// Update the indicator, returning an error without changing state for a
+    /// negative or non-finite volume.
+    pub fn try_next(&mut self, (price, volume): (f64, f64)) -> Result<Option<f64>> {
+        self._try_next(price, volume)
+    }
+
+    /// Update from custom market data, returning an error without changing state
+    /// for a negative or non-finite volume.
+    pub fn try_next_ref<Input: Price + Volume>(&mut self, input: &Input) -> Result<Option<f64>> {
+        self._try_next(input.price(), input.volume())
+    }
+
     fn _next(&mut self, price: f64, volume: f64) -> Option<f64> {
+        self._try_next(price, volume)
+            .unwrap_or_else(|_| self.current())
+    }
+
+    fn _try_next(&mut self, price: f64, volume: f64) -> Result<Option<f64>> {
+        if !volume.is_finite() || volume < 0.0 {
+            return Err(InvalidVolumeError::new(volume).into());
+        }
+
         if volume == 0.0 {
-            return self.current();
+            return Ok(self.current());
         }
 
         let previous_total_volume = self.total_volume;
         self.total_volume += volume;
         if self.total_volume == 0.0 {
             self.current = None;
-            return None;
+            return Ok(None);
         }
 
         if previous_total_volume == 0.0 {
@@ -47,7 +70,7 @@ impl Vwap {
             self.current = Some(price);
         }
 
-        self.current()
+        Ok(self.current())
     }
 }
 
@@ -151,5 +174,27 @@ mod tests {
         assert_eq!(indicator.next_option((110.0, 2.0)), Some(110.0));
         assert_eq!(indicator.next_option((999.0, 0.0)), Some(110.0));
         assert_eq!(indicator.next_option(&TestItem(120.0, 2.0)), Some(115.0));
+    }
+
+    #[test]
+    fn invalid_volumes_are_rejected_without_changing_state() -> crate::Result<()> {
+        let mut indicator = Vwap::new();
+        assert_eq!(indicator.try_next((100.0, 1.0))?, Some(100.0));
+        assert_eq!(indicator.try_next((110.0, 1.0))?, Some(105.0));
+
+        for volume in [-1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(indicator.try_next((999.0, volume)).is_err());
+            assert_eq!(indicator.current(), Some(105.0));
+        }
+        assert_eq!(indicator.next((999.0, -1.0)), 105.0);
+        assert_eq!(indicator.try_next_ref(&TestItem(120.0, 1.0))?, Some(110.0));
+
+        let mut empty = Vwap::new();
+        assert!(empty.try_next((100.0, f64::NAN)).is_err());
+        assert_eq!(empty.current(), None);
+        assert!(empty.next((100.0, -1.0)).is_nan());
+        assert_eq!(empty.current(), None);
+
+        Ok(())
     }
 }

@@ -1,5 +1,6 @@
 use crate::{
-    Current, Indicator, InvalidRangeError, Next, Parameter, Price, Range, Reset, Result, Volume,
+    Current, Indicator, InvalidRangeError, InvalidVolumeError, Next, Parameter, Price, Range,
+    Reset, Result, Volume,
 };
 use alloc::collections::VecDeque;
 
@@ -53,7 +54,9 @@ impl Vwma {
     /// Update the indicator and return `None` when the window has zero total volume.
     ///
     /// This accepts the same input forms as [`Next`]. The [`Next`] implementations
-    /// keep their `f64` output and return `NaN` while the result is undefined.
+    /// keep their `f64` output and return `NaN` while the result is undefined. Use
+    /// [`try_next`](Self::try_next) or [`try_next_ref`](Self::try_next_ref) to
+    /// detect and reject negative or non-finite volumes.
     pub fn next_option<Input>(&mut self, input: Input) -> Option<f64>
     where
         Self: Next<Input>,
@@ -62,7 +65,28 @@ impl Vwma {
         self.current()
     }
 
+    /// Update the indicator, returning an error without changing state for a
+    /// negative or non-finite volume.
+    pub fn try_next(&mut self, (price, volume): (f64, f64)) -> Result<Option<f64>> {
+        self._try_next(price, volume)
+    }
+
+    /// Update from custom market data, returning an error without changing state
+    /// for a negative or non-finite volume.
+    pub fn try_next_ref<Input: Price + Volume>(&mut self, input: &Input) -> Result<Option<f64>> {
+        self._try_next(input.price(), input.volume())
+    }
+
     fn _next(&mut self, price: f64, volume: f64) -> Option<f64> {
+        self._try_next(price, volume)
+            .unwrap_or_else(|_| self.current())
+    }
+
+    fn _try_next(&mut self, price: f64, volume: f64) -> Result<Option<f64>> {
+        if !volume.is_finite() || volume < 0.0 {
+            return Err(InvalidVolumeError::new(volume).into());
+        }
+
         let mut removed = None;
         match &mut self.sum {
             Some((sum, total_volume)) => {
@@ -104,7 +128,7 @@ impl Vwma {
                 }
             }
         }
-        self.current()
+        Ok(self.current())
     }
 }
 
@@ -236,6 +260,28 @@ mod tests {
         assert!(indicator.next((150.0, 0.0)).is_nan());
         assert_eq!(indicator.next_option((160.0, 1.0)), Some(160.0));
         assert_eq!(indicator.next_option(&TestItem(170.0, 1.0)), Some(165.0));
+
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_volumes_are_rejected_without_changing_state() -> crate::Result<()> {
+        let mut indicator = Vwma::new(2)?;
+        assert_eq!(indicator.try_next((100.0, 1.0))?, Some(100.0));
+        assert_eq!(indicator.try_next((110.0, 1.0))?, Some(105.0));
+
+        for volume in [-1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(indicator.try_next((999.0, volume)).is_err());
+            assert_eq!(indicator.current(), Some(105.0));
+        }
+        assert_eq!(indicator.next((999.0, -1.0)), 105.0);
+        assert_eq!(indicator.try_next_ref(&TestItem(120.0, 1.0))?, Some(115.0));
+
+        let mut empty = Vwma::new(2)?;
+        assert!(empty.try_next((100.0, f64::NAN)).is_err());
+        assert_eq!(empty.current(), None);
+        assert!(empty.next((100.0, -1.0)).is_nan());
+        assert_eq!(empty.current(), None);
 
         Ok(())
     }

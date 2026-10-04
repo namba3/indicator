@@ -67,3 +67,27 @@ fn option_api_accepts_custom_market_data() {
     assert_eq!(vwap.next_option(&zero_volume_trade), None);
     assert_eq!(vwap.next_option(&trade), Some(110.0));
 }
+
+#[test]
+fn invalid_volume_is_reported_without_mutating_indicators() -> indicator::Result<()> {
+    let mut vwap = Vwap::new();
+    assert_eq!(vwap.try_next((100.0, 1.0))?, Some(100.0));
+    let error = vwap
+        .try_next_ref(&Trade {
+            price: 999.0,
+            volume: f64::INFINITY,
+        })
+        .unwrap_err();
+    assert!(matches!(error, indicator::Error::InvalidVolume(_)));
+    assert_eq!(vwap.current(), Some(100.0));
+
+    let mut vwma = Vwma::new(2)?;
+    assert_eq!(vwma.try_next((100.0, 1.0))?, Some(100.0));
+    assert!(matches!(
+        vwma.try_next((999.0, -1.0)),
+        Err(indicator::Error::InvalidVolume(_))
+    ));
+    assert_eq!(vwma.current(), Some(100.0));
+
+    Ok(())
+}

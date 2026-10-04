@@ -127,11 +127,14 @@ assert_eq!(sma_window.next(102.0), vec![100.8, 101.2, 101.6]);
 
 VWAP と VWMA の `next_option` は、合計出来高が 0 の間 `None` を返します。既存の `Next` は `f64` の戻り値を保ち、計算結果が未定義の間は `NaN` を返します。
 
+負数または NaN・無限大の出来高は無効です。`try_next`（タプル入力）または `try_next_ref`（`Price` と `Volume` を実装した型の参照）を使うと、`InvalidVolume` エラーになり、指標の状態は変化しません。既存の `Next` は戻り値の型を変えず、不正な出来高を無視して現在値を返します。外部データを検証する場合は `try_next` 系を使用してください。
+
 ```rust
 let mut vwap = Vwap::new();
 
 assert_eq!(vwap.next_option((100.0, 0.0)), None);
 assert_eq!(vwap.next_option((110.0, 2.0)), Some(110.0));
+assert!(vwap.try_next((120.0, -1.0)).is_err());
 ```
 
 ### Iterator に変換する

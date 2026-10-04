@@ -56,6 +56,26 @@ impl<T: Display> Display for InvalidRangeError<T> {
 impl<T: Debug + Display> std::error::Error for InvalidRangeError<T> {}
 
 #[derive(Debug, Clone)]
+pub struct InvalidVolumeError {
+    pub(crate) volume: f64,
+}
+impl InvalidVolumeError {
+    pub(crate) fn new(volume: f64) -> Self {
+        Self { volume }
+    }
+}
+impl Display for InvalidVolumeError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!(
+            "expected volume to be finite and non-negative, but actually {}.",
+            self.volume
+        ))
+    }
+}
+#[cfg(feature = "std")]
+impl std::error::Error for InvalidVolumeError {}
+
+#[derive(Debug, Clone)]
 pub struct InvalidBinaryRelationError<T: Display> {
     pub(crate) operator: &'static str,
     pub(crate) lhs: Parameter<T>,
@@ -87,6 +107,7 @@ pub enum Error {
     InvalidUintRange(InvalidRangeError<usize>),
     InvalidFloatRange(InvalidRangeError<f64>),
     InvalidRelation(InvalidBinaryRelationError<usize>),
+    InvalidVolume(InvalidVolumeError),
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
@@ -95,6 +116,7 @@ impl Display for Error {
             InvalidUintRange(e) => f.write_fmt(format_args!("invalid uint range: {e}")),
             InvalidFloatRange(e) => f.write_fmt(format_args!("invalid float range: {e}")),
             InvalidRelation(e) => f.write_fmt(format_args!("invalid relation: {e}")),
+            InvalidVolume(e) => f.write_fmt(format_args!("invalid volume: {e}")),
         }
     }
 }
@@ -111,6 +133,11 @@ impl From<InvalidRangeError<f64>> for Error {
 impl From<InvalidBinaryRelationError<usize>> for Error {
     fn from(e: InvalidBinaryRelationError<usize>) -> Self {
         Self::InvalidRelation(e)
+    }
+}
+impl From<InvalidVolumeError> for Error {
+    fn from(e: InvalidVolumeError) -> Self {
+        Self::InvalidVolume(e)
     }
 }
 
@@ -174,6 +201,7 @@ mod tests {
             lhs: Parameter::new("short_period", 3),
             rhs: Parameter::new("long_period", 2),
         });
+        let volume = Error::from(InvalidVolumeError::new(-1.0));
 
         assert_eq!(
             uint_range.to_string(),
@@ -186,6 +214,10 @@ mod tests {
         assert_eq!(
             relation.to_string(),
             "invalid relation: expected to be short_period < long_period, found 3 < 2."
+        );
+        assert_eq!(
+            volume.to_string(),
+            "invalid volume: expected volume to be finite and non-negative, but actually -1."
         );
     }
 }

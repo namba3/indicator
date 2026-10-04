@@ -42,11 +42,7 @@ impl Stochastics {
             Some(current) => {
                 let d_numerator = self.d_numerator.next(input - min);
                 let d_denominator = self.d_denominator.next(max - min);
-                current.k = if min == max {
-                    0.5
-                } else {
-                    (input - min) / (max - min)
-                };
+                current.k = Self::percent_k(input, min, max);
                 current.d = if d_denominator == 0.0 {
                     0.5
                 } else {
@@ -68,6 +64,25 @@ impl Stochastics {
         }
 
         self.current().unwrap()
+    }
+
+    fn percent_k(input: f64, min: f64, max: f64) -> f64 {
+        if min == max {
+            return 0.5;
+        }
+
+        let numerator = input - min;
+        let denominator = max - min;
+        if numerator.is_finite() && denominator.is_finite() {
+            return numerator / denominator;
+        }
+
+        if !input.is_finite() || !min.is_finite() || !max.is_finite() {
+            return numerator / denominator;
+        }
+
+        let scale = input.abs().max(min.abs()).max(max.abs());
+        ((input / scale) - (min / scale)) / ((max / scale) - (min / scale))
     }
 }
 impl Default for Stochastics {
@@ -225,6 +240,26 @@ mod tests {
                 }
             );
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn percent_k_stays_bounded_for_extreme_finite_prices() -> crate::Result<()> {
+        let mut stochastics = Stochastics::new(3, 2, 2)?;
+        assert_eq!(stochastics.next(-f64::MAX).k, 0.5);
+
+        let output = stochastics.next(f64::MAX);
+        assert_eq!(output.k, 1.0);
+        assert!(output.k.is_finite());
+
+        let output = stochastics.next(0.0);
+        assert_eq!(output.k, 0.5);
+        assert!(output.k.is_finite());
+
+        let output = stochastics.next(f64::MAX / 2.0);
+        assert_eq!(output.k, 0.5);
+        assert!(output.k.is_finite());
 
         Ok(())
     }

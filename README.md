@@ -143,3 +143,14 @@ while let Some(value) = sma_stream.next().await {
     println!("{value}");
 }
 ```
+
+## ベンチマーク
+
+stable Rust の `std::time::Instant` と `std::hint::black_box` を使ったベンチマークを実行できます。
+
+```sh
+cargo bench --bench indicators
+cargo bench --bench indicators -- 2000000
+```
+
+数値は実行環境に依存します。異なる環境間の性能比較には使わず、同じ環境での相対比較に利用してください。

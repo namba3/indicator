@@ -8,6 +8,11 @@ rust-version = "1.85"
 name = "basic"
 path = "./example/basic.rs"
 
+[[bench]]
+name = "indicators"
+path = "benches/indicators.rs"
+harness = false
+
 [features]
 default = ["std"]
 std = []

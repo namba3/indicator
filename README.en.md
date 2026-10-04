@@ -143,3 +143,14 @@ while let Some(value) = sma_stream.next().await {
     println!("{value}");
 }
 ```
+
+## Benchmarks
+
+Run the benchmarks using stable Rust's `std::time::Instant` and `std::hint::black_box`.
+
+```sh
+cargo bench --bench indicators
+cargo bench --bench indicators -- 2000000
+```
+
+Results depend on the machine and build environment. Use them for relative comparisons on the same machine rather than comparisons across different environments.

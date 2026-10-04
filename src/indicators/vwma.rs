@@ -164,12 +164,16 @@ impl Vwma {
     }
 
     fn recompute_sums(&mut self) {
-        self.volume_scale = padded_values(&self.ring, self.period)
-            .map(|(_, volume)| volume)
-            .fold(0.0, f64::max);
-        self.max_volume_count = padded_values(&self.ring, self.period)
-            .filter(|(_, volume)| *volume == self.volume_scale && self.volume_scale > 0.0)
-            .count();
+        (self.volume_scale, self.max_volume_count) =
+            padded_values(&self.ring, self.period).fold((0.0, 0), |(scale, count), (_, volume)| {
+                if volume > scale {
+                    (volume, 1)
+                } else if volume == scale && scale > 0.0 {
+                    (scale, count + 1)
+                } else {
+                    (scale, count)
+                }
+            });
 
         let mut sum = 0.0;
         let mut total_volume = 0.0;
@@ -331,6 +335,38 @@ mod tests {
             indicator.ring.iter().copied().collect::<Vec<_>>(),
             [(10.0, 2.0)]
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn recomputation_tracks_tied_maximum_volumes_through_window_expiry() -> crate::Result<()> {
+        let mut indicator = Vwma::new(4)?;
+
+        for input in [(100.0, 0.0), (80.0, 5.0), (120.0, 5.0), (110.0, 2.0)] {
+            let before = indicator.next_option(input);
+            indicator.recompute_sums();
+            assert_eq!(indicator.current(), before);
+        }
+        assert_eq!(indicator.volume_scale, 5.0);
+        assert_eq!(indicator.max_volume_count, 2);
+
+        let before = indicator.next_option((130.0, 1.0));
+        indicator.recompute_sums();
+        assert_eq!(indicator.current(), before);
+        assert_eq!(indicator.max_volume_count, 2);
+
+        let before = indicator.next_option((140.0, 4.0));
+        indicator.recompute_sums();
+        assert_eq!(indicator.current(), before);
+        assert_eq!(indicator.volume_scale, 5.0);
+        assert_eq!(indicator.max_volume_count, 1);
+
+        let before = indicator.next_option((150.0, 3.0));
+        indicator.recompute_sums();
+        assert_eq!(indicator.current(), before);
+        assert_eq!(indicator.volume_scale, 4.0);
+        assert_eq!(indicator.max_volume_count, 1);
 
         Ok(())
     }

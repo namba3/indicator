@@ -1,6 +1,6 @@
 use alloc::collections::VecDeque;
 
-pub(super) fn values(ring: &VecDeque<f64>, period: usize) -> impl Iterator<Item = f64> + '_ {
+pub(super) fn values<T: Copy>(ring: &VecDeque<T>, period: usize) -> impl Iterator<Item = T> + '_ {
     let missing = period - ring.len();
     ring.front()
         .copied()

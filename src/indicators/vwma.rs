@@ -1,3 +1,4 @@
+use super::padded_window::values as padded_values;
 use crate::{
     Current, Indicator, InvalidPriceError, InvalidRangeError, InvalidVolumeError, Next, Parameter,
     Price, Range, Reset, Result, Volume, try_deque_with_capacity,
@@ -95,9 +96,7 @@ impl Vwma {
         }
 
         if self.sum.is_none() {
-            for _ in 0..self.period {
-                self.ring.push_back((price, volume));
-            }
+            self.ring.push_back((price, volume));
             self.volume_scale = volume;
             self.max_volume_count = if volume > 0.0 { self.period } else { 0 };
             self.sum = Some(if volume > 0.0 {
@@ -109,7 +108,11 @@ impl Vwma {
             return Ok(self.current());
         }
 
-        let (old_price, old_volume) = self.ring.pop_front().unwrap();
+        let (old_price, old_volume) = if self.ring.len() < self.period {
+            *self.ring.front().unwrap()
+        } else {
+            self.ring.pop_front().unwrap()
+        };
         self.ring.push_back((price, volume));
 
         let old_scale = self.volume_scale;
@@ -161,22 +164,18 @@ impl Vwma {
     }
 
     fn recompute_sums(&mut self) {
-        self.volume_scale = self
-            .ring
-            .iter()
-            .map(|(_, volume)| *volume)
+        self.volume_scale = padded_values(&self.ring, self.period)
+            .map(|(_, volume)| volume)
             .fold(0.0, f64::max);
-        self.max_volume_count = self
-            .ring
-            .iter()
+        self.max_volume_count = padded_values(&self.ring, self.period)
             .filter(|(_, volume)| *volume == self.volume_scale && self.volume_scale > 0.0)
             .count();
 
         let mut sum = 0.0;
         let mut total_volume = 0.0;
         self.compensation = (0.0, 0.0);
-        for (price, volume) in &self.ring {
-            let weight = normalized_volume_weight(*volume, self.volume_scale, self.period);
+        for (price, volume) in padded_values(&self.ring, self.period) {
+            let weight = normalized_volume_weight(volume, self.volume_scale, self.period);
             add_compensated(&mut sum, &mut self.compensation.0, price * weight);
             add_compensated(&mut total_volume, &mut self.compensation.1, weight);
         }
@@ -291,6 +290,47 @@ mod tests {
         for (price, volume) in [(3.5, 1.0), (-2.0, 4.0), (9.25, 2.0)] {
             assert_eq!(indicator.next((price, volume)), price);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn first_input_is_stored_once_while_recomputation_uses_virtual_padding() -> crate::Result<()> {
+        let mut indicator = Vwma::new(3)?;
+
+        assert_eq!(indicator.next_option((2.0, 1.0)), Some(2.0));
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [(2.0, 1.0)]
+        );
+        assert_eq!(indicator.max_volume_count, 3);
+
+        indicator.recompute_sums();
+        assert_eq!(indicator.current(), Some(2.0));
+        assert_eq!(indicator.max_volume_count, 3);
+
+        assert_eq!(indicator.next_option((4.0, 2.0)), Some(3.0));
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [(2.0, 1.0), (4.0, 2.0)]
+        );
+        assert!((indicator.next_option((6.0, 3.0)).unwrap() - 14.0 / 3.0).abs() < 1.0e-12);
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [(2.0, 1.0), (4.0, 2.0), (6.0, 3.0)]
+        );
+        assert!((indicator.next_option((8.0, 4.0)).unwrap() - 58.0 / 9.0).abs() < 1.0e-12);
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [(4.0, 2.0), (6.0, 3.0), (8.0, 4.0)]
+        );
+
+        indicator.reset();
+        assert_eq!(indicator.next_option((10.0, 2.0)), Some(10.0));
+        assert_eq!(
+            indicator.ring.iter().copied().collect::<Vec<_>>(),
+            [(10.0, 2.0)]
+        );
 
         Ok(())
     }

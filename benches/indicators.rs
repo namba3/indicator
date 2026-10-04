@@ -178,6 +178,12 @@ fn run_rolling_first_input_benchmarks(iterations: usize) {
             min.reset();
             min.next(black_box(price_at(index)))
         });
+
+        let mut vwma = Vwma::new(period).expect("valid VWMA period");
+        run_benchmark(&format!("VWMA/{period}/first-input"), iterations, |index| {
+            vwma.reset();
+            vwma.next(black_box((price_at(index), 1.0)))
+        });
     }
 }
 

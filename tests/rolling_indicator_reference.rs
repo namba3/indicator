@@ -1,4 +1,6 @@
-use indicator::{Current, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Sma, Vwma};
+use indicator::{
+    Current, IndicatorExt, Max, MaxIndex, Min, MinIndex, Next, Reset, Sma, Vwap, Vwma,
+};
 
 fn deterministic_inputs() -> Vec<f64> {
     let mut state = 0x5eed_u64;
@@ -148,6 +150,67 @@ fn vwma_matches_naive_recomputation_across_a_long_mixed_scale_sequence() -> indi
         match (actual, expected) {
             (Some(actual), Some(expected)) => {
                 let tolerance = 1.0e-5 * expected.abs().max(1.0e-6);
+                assert!(
+                    (actual - expected).abs() <= tolerance,
+                    "position {position}: actual {actual}, expected {expected}, tolerance {tolerance}"
+                );
+            }
+            (None, None) => {}
+            (actual, expected) => {
+                panic!("position {position}: actual {actual:?}, expected {expected:?}")
+            }
+        }
+        assert_eq!(indicator.current(), actual);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn vwap_matches_naive_recomputation_across_a_long_mixed_scale_sequence() -> indicator::Result<()> {
+    const INPUT_COUNT: usize = 12_000;
+    const PRICE_SCALES: [f64; 4] = [1.0e-6, 1.0, 1.0e3, 1.0e6];
+    const VOLUME_SCALES: [f64; 4] = [1.0e-9, 1.0e-3, 1.0, 1.0e6];
+
+    let mut state = 0x6ac1_38d5_917e_42bf_u64;
+    let inputs = (0..INPUT_COUNT)
+        .map(|index| {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
+            let price_scale = PRICE_SCALES[(index / 317) % PRICE_SCALES.len()];
+            let price_fraction = 1.0 + f64::from((state >> 32) as u32 % 10_000) / 10_000.0;
+            let volume_scale = VOLUME_SCALES[(index / 47) % VOLUME_SCALES.len()];
+            let volume_fraction = f64::from((state >> 16) as u16 % 1_000) / 1_000.0;
+            let volume = if index % 101 < 3 {
+                0.0
+            } else {
+                volume_scale * volume_fraction
+            };
+            (price_scale * price_fraction, volume)
+        })
+        .collect::<Vec<_>>();
+
+    let mut indicator = Vwap::new();
+    let mut history = Vec::with_capacity(INPUT_COUNT);
+    for (position, input) in inputs.into_iter().enumerate() {
+        history.push(input);
+        let actual = indicator.try_next(input)?;
+
+        if position % 31 != 0 && position + 1 != INPUT_COUNT {
+            continue;
+        }
+
+        let weighted_sum = history
+            .iter()
+            .map(|(price, volume)| price * volume)
+            .sum::<f64>();
+        let total_volume = history.iter().map(|(_, volume)| volume).sum::<f64>();
+        let expected = (total_volume != 0.0).then_some(weighted_sum / total_volume);
+
+        match (actual, expected) {
+            (Some(actual), Some(expected)) => {
+                let tolerance = 1.0e-9 * expected.abs().max(1.0e-6);
                 assert!(
                     (actual - expected).abs() <= tolerance,
                     "position {position}: actual {actual}, expected {expected}, tolerance {tolerance}"

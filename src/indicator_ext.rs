@@ -229,7 +229,8 @@ pub trait IndicatorExt: Indicator + Sized {
     /// ```
     /// Each output is an owned snapshot, so the inner output must implement `Clone`.
     /// Use [`Window::iter`](crate::operators::Window::iter) to borrow and iterate over the current
-    /// window without creating a snapshot.
+    /// window without creating a snapshot. Call [`Window::advance`](crate::operators::Window::advance)
+    /// followed by `iter` when the owned snapshot is not needed.
     fn window(self, window_size: usize) -> Window<Self>
     where
         Self::Output: Clone,

@@ -141,6 +141,16 @@ assert_eq!(sma_window.next(102.0), vec![100.4, 100.8, 101.2]);
 assert_eq!(sma_window.next(102.0), vec![100.8, 101.2, 101.6]);
 ```
 
+スナップショットが不要な場合は `advance` と `iter` を使うと、ウィンドウの読み取り用 `Vec` を作らずに更新できます。
+
+```rust
+let sma = Sma::new(5).unwrap();
+let mut sma_window = sma.window(3);
+
+sma_window.advance(100.0);
+assert_eq!(sma_window.iter().copied().collect::<Vec<_>>(), vec![100.0, 100.0, 100.0]);
+```
+
 ### 出来高 0 の加重平均を扱う
 
 VWAP と VWMA の `next_option` は、合計出来高が 0 の間 `None` を返します。既存の `Next` は `f64` の戻り値を保ち、計算結果が未定義の間は `NaN` を返します。

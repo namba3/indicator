@@ -46,6 +46,25 @@ impl<Inner: Indicator> Window<Inner> {
             .chain(self.ring.iter())
     }
 
+    /// Advance the inner indicator without creating an owned window snapshot.
+    ///
+    /// Read the updated window through [`iter`](Self::iter). This can avoid the
+    /// allocation and output cloning performed by [`Next::next`].
+    pub fn advance<N>(&mut self, input: N)
+    where
+        Inner: Next<N>,
+    {
+        let value = self.inner.next(input);
+        if 0 < self.window_size {
+            if self.window_size <= self.ring.len() {
+                let _ = self.ring.pop_front();
+            }
+            self.ring.push_back(value);
+        }
+
+        self.is_first = false;
+    }
+
     fn window(&self) -> Vec<Inner::Output>
     where
         Inner::Output: Clone,
@@ -72,15 +91,7 @@ where
     Inner::Output: Clone,
 {
     fn next(&mut self, input: N) -> Self::Output {
-        let value = self.inner.next(input);
-        if 0 < self.window_size {
-            if self.window_size <= self.ring.len() {
-                let _ = self.ring.pop_front();
-            }
-            self.ring.push_back(value);
-        }
-
-        self.is_first = false;
+        self.advance(input);
         self.window()
     }
 }
@@ -266,6 +277,37 @@ mod tests {
         window.next(1.0);
         assert_eq!(window.iter().count(), 0);
 
+        Ok(())
+    }
+
+    #[test]
+    fn advance_matches_snapshots_and_reset_behavior() -> crate::Result<()> {
+        let mut snapshots = Sma::new(1)?.window(3);
+        let mut borrowed = Sma::new(1)?.window(3);
+
+        for input in [1.0, 2.0, 3.0, 4.0] {
+            let expected = snapshots.next(input);
+            borrowed.advance(input);
+
+            assert_eq!(borrowed.iter().copied().collect::<Vec<_>>(), expected);
+            assert_eq!(borrowed.current(), Some(expected));
+        }
+
+        borrowed.reset();
+        assert_eq!(borrowed.iter().count(), 0);
+        assert_eq!(borrowed.current(), None);
+        Ok(())
+    }
+
+    #[test]
+    fn advance_updates_inner_state_for_a_zero_sized_window() -> crate::Result<()> {
+        let mut window = Sma::new(1)?.window(0);
+
+        window.advance(42.0);
+
+        assert_eq!(window.iter().count(), 0);
+        assert_eq!(window.current(), Some(Vec::new()));
+        assert_eq!(window.decompose().current(), Some(42.0));
         Ok(())
     }
 

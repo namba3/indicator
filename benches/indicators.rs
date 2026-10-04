@@ -144,6 +144,16 @@ fn run_window_benchmarks(iterations: usize) {
             window_iterations,
             |index| window.next(black_box(price_at(index))).into_iter().sum(),
         );
+
+        let mut window = Sma::new(14).expect("valid SMA period").window(period);
+        run_benchmark(
+            &format!("Window/{period}/borrowed"),
+            window_iterations,
+            |index| {
+                window.advance(black_box(price_at(index)));
+                window.iter().copied().sum()
+            },
+        );
     }
 }
 

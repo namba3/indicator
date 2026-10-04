@@ -10,6 +10,7 @@ pub struct Sma {
     period: usize,
     ring: VecDeque<f64>,
     sum: Option<f64>,
+    mean: Option<f64>,
 }
 impl Sma {
     pub fn new(period: usize) -> Result<Self> {
@@ -24,25 +25,51 @@ impl Sma {
                 period,
                 ring: try_deque_with_capacity(period)?,
                 sum: None,
+                mean: None,
             })
         }
     }
 
     fn _next(&mut self, input: f64) -> <Self as Indicator>::Output {
-        match &mut self.sum {
-            Some(sum) => {
-                *sum -= self.ring.pop_front().unwrap();
-                self.ring.push_back(input);
-                *sum += input;
+        if let Some(sum) = self.sum {
+            let old_value = self.ring.pop_front().unwrap();
+            self.ring.push_back(input);
+
+            let sum_without_old = sum - old_value;
+            let updated_sum = sum_without_old + input;
+            if sum_without_old.is_finite() && updated_sum.is_finite() {
+                self.sum = Some(updated_sum);
+            } else {
+                let mean = sum / self.period as f64;
+                self.sum = None;
+                self.mean = Some(Self::update_mean(mean, old_value, input, self.period));
             }
-            None => {
-                for _ in 0..self.period {
-                    self.ring.push_back(input);
-                }
-                self.sum = (input * self.period as f64).into();
+        } else if let Some(mean) = self.mean {
+            let old_value = self.ring.pop_front().unwrap();
+            self.ring.push_back(input);
+            self.mean = Some(Self::update_mean(mean, old_value, input, self.period));
+        } else {
+            for _ in 0..self.period {
+                self.ring.push_back(input);
+            }
+            let sum = input * self.period as f64;
+            if sum.is_finite() {
+                self.sum = Some(sum);
+            } else {
+                self.mean = Some(input);
             }
         }
         self.current().unwrap()
+    }
+
+    fn update_mean(mean: f64, old_value: f64, input: f64, period: usize) -> f64 {
+        if period == 1 {
+            input
+        } else if old_value.is_sign_positive() != input.is_sign_positive() {
+            mean + input / period as f64 - old_value / period as f64
+        } else {
+            mean + (input - old_value) / period as f64
+        }
     }
 }
 
@@ -51,7 +78,8 @@ impl Indicator for Sma {
 }
 impl Current for Sma {
     fn current(&self) -> Option<Self::Output> {
-        self.sum.map(|s| s / self.period as f64)
+        self.mean
+            .or_else(|| self.sum.map(|sum| sum / self.period as f64))
     }
 }
 impl Next<f64> for Sma {
@@ -68,6 +96,7 @@ impl Reset for Sma {
     fn reset(&mut self) {
         self.ring.clear();
         self.sum = None;
+        self.mean = None;
     }
 }
 
@@ -124,6 +153,26 @@ mod tests {
         for input in [3.5, -2.0, 0.0, 9.25] {
             assert_eq!(sma.next(input), input);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn opposite_extreme_finite_inputs_do_not_overflow() -> crate::Result<()> {
+        let mut sma = Sma::new(2)?;
+        assert_eq!(sma.next(f64::MAX), f64::MAX);
+        assert_eq!(sma.current(), Some(f64::MAX));
+        assert_eq!(sma.next(-f64::MAX), 0.0);
+        assert_eq!(sma.next(-f64::MAX), -f64::MAX);
+
+        let mut rolling_sum = Sma::new(2)?;
+        assert_eq!(rolling_sum.next(-f64::MAX / 2.0), -f64::MAX / 2.0);
+        assert_eq!(rolling_sum.next(f64::MAX), f64::MAX / 4.0);
+        assert_eq!(rolling_sum.next(f64::MAX), f64::MAX);
+
+        let mut period_one = Sma::new(1)?;
+        assert_eq!(period_one.next(f64::MAX), f64::MAX);
+        assert_eq!(period_one.next(-f64::MAX), -f64::MAX);
 
         Ok(())
     }

@@ -106,4 +106,13 @@ mod tests {
             },
         }
     }
+
+    #[test]
+    fn zero_volume_does_not_change_weighted_average() {
+        let mut indicator = Vwap::new();
+
+        assert_eq!(indicator.next((100.0, 2.0)), 100.0);
+        assert_eq!(indicator.next((999.0, 0.0)), 100.0);
+        assert_eq!(indicator.next((110.0, 2.0)), 105.0);
+    }
 }

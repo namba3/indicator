@@ -147,4 +147,16 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn zero_volume_does_not_change_weighted_average() -> crate::Result<()> {
+        let mut indicator = Vwma::new(3)?;
+
+        assert_eq!(indicator.next((100.0, 1.0)), 100.0);
+        assert_eq!(indicator.next((999.0, 0.0)), 100.0);
+        assert_eq!(indicator.next((110.0, 1.0)), 105.0);
+        assert_eq!(indicator.next((110.0, 1.0)), 110.0);
+
+        Ok(())
+    }
 }

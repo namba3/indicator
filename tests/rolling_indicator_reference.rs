@@ -1,6 +1,6 @@
 use indicator::{
     Current, Ema, IndicatorExt, Macd, Max, MaxIndex, Min, MinIndex, Next, Reset, Rma, Rsi, Sma,
-    StandardDeviation, Vwap, Vwma,
+    StandardDeviation, Stochastics, Vwap, Vwma,
 };
 
 fn deterministic_inputs() -> Vec<f64> {
@@ -17,6 +17,15 @@ fn deterministic_inputs() -> Vec<f64> {
     }
 
     inputs
+}
+
+fn push_reference_window(window: &mut Vec<f64>, period: usize, input: f64) {
+    if window.is_empty() {
+        window.resize(period, input);
+    } else {
+        window.remove(0);
+        window.push(input);
+    }
 }
 
 #[test]
@@ -177,6 +186,79 @@ fn macd_matches_ema_and_signal_references_across_long_sequence_and_reset() -> in
 
         short_ema = Some(next_short_ema);
         long_ema = Some(next_long_ema);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn stochastics_matches_naive_reference_across_long_sequence_and_reset() -> indicator::Result<()> {
+    const N_PERIOD: usize = 11;
+    const M_PERIOD: usize = 4;
+    const X_PERIOD: usize = 3;
+    let inputs = deterministic_inputs();
+    let mut stochastics = Stochastics::new(N_PERIOD, M_PERIOD, X_PERIOD)?;
+    let mut price_window = Vec::with_capacity(N_PERIOD);
+    let mut d_numerator_window = Vec::with_capacity(M_PERIOD);
+    let mut d_denominator_window = Vec::with_capacity(M_PERIOD);
+    let mut slow_d_window = Vec::with_capacity(X_PERIOD);
+
+    for (position, input) in inputs.into_iter().enumerate() {
+        if position == 257 {
+            stochastics.reset();
+            price_window.clear();
+            d_numerator_window.clear();
+            d_denominator_window.clear();
+            slow_d_window.clear();
+        }
+
+        push_reference_window(&mut price_window, N_PERIOD, input);
+        let lowest = price_window.iter().copied().fold(f64::INFINITY, f64::min);
+        let highest = price_window
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max);
+        let expected_k = if lowest == highest {
+            0.5
+        } else {
+            (input - lowest) / (highest - lowest)
+        };
+
+        let first_output = d_numerator_window.is_empty();
+        let numerator = if first_output { 0.0 } else { input - lowest };
+        let denominator = if first_output { 0.0 } else { highest - lowest };
+        push_reference_window(&mut d_numerator_window, M_PERIOD, numerator);
+        push_reference_window(&mut d_denominator_window, M_PERIOD, denominator);
+        let average_numerator = d_numerator_window.iter().sum::<f64>() / M_PERIOD as f64;
+        let average_denominator = d_denominator_window.iter().sum::<f64>() / M_PERIOD as f64;
+        let expected_d = if first_output || average_denominator == 0.0 {
+            0.5
+        } else {
+            average_numerator / average_denominator
+        };
+
+        let slow_d_input = if first_output { 0.0 } else { expected_d };
+        push_reference_window(&mut slow_d_window, X_PERIOD, slow_d_input);
+        let expected_slow_d = if first_output {
+            0.5
+        } else {
+            slow_d_window.iter().sum::<f64>() / X_PERIOD as f64
+        };
+
+        let actual = stochastics.next(input);
+        let tolerance = 1.0e-12;
+        for (name, actual, expected) in [
+            ("%K", actual.k, expected_k),
+            ("%D", actual.d, expected_d),
+            ("Slow %D", actual.slow_d, expected_slow_d),
+        ] {
+            assert!(
+                (actual - expected).abs() <= tolerance,
+                "position {position}: {name} {actual}, expected {expected}, tolerance {tolerance}"
+            );
+            assert!((0.0..=1.0).contains(&actual));
+        }
+        assert_eq!(stochastics.current(), Some(actual));
     }
 
     Ok(())
